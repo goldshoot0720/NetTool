@@ -1,0 +1,113 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Tidegate.App.App"
+             xmlns:local="using:Tidegate.App"
+             RequestedThemeVariant="Dark">
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+
+    <Application.Styles>
+        <FluentTheme />
+        <Style Selector="Button.mode">
+            <Setter Property="Background" Value="#1C2621"/>
+            <Setter Property="Foreground" Value="#E7F0EA"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#31443A"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="999"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding Content}"
+                                          Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.mode.selected">
+            <Setter Property="Background" Value="#D6F26A"/>
+            <Setter Property="Foreground" Value="#172016"/>
+            <Setter Property="BorderBrush" Value="#D6F26A"/>
+        </Style>
+        <Style Selector="Button.mode:pointerover">
+            <Setter Property="Background" Value="#294036"/>
+        </Style>
+        <Style Selector="Button.mode.selected:pointerover">
+            <Setter Property="Background" Value="#E4F78C"/>
+        </Style>
+        <Style Selector="Button.mode.column">
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#8FA399"/>
+        </Style>
+        <Style Selector="Button.mode.column.selected">
+            <Setter Property="Foreground" Value="#172016"/>
+            <Setter Property="Background" Value="#D6F26A"/>
+        </Style>
+        <Style Selector="Button.action">
+            <Setter Property="Background" Value="#D6F26A"/>
+            <Setter Property="Foreground" Value="#172016"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding Content}"
+                                          Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.action:disabled">
+            <Setter Property="Opacity" Value="0.45"/>
+        </Style>
+        <Style Selector="Button.quiet">
+            <Setter Property="Background" Value="#24312A"/>
+            <Setter Property="Foreground" Value="#E7F0EA"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding Content}"
+                                          Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="TextBlock.cap">
+            <Setter Property="Foreground" Value="#8FA399"/>
+        </Style>
+        <Style Selector="TextBlock.cap.capped">
+            <Setter Property="Foreground" Value="#D6F26A"/>
+        </Style>
+        <Style Selector="TextBox.field">
+            <Setter Property="Background" Value="#101614"/>
+            <Setter Property="Foreground" Value="#E7F0EA"/>
+            <Setter Property="BorderBrush" Value="#31443A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="10,8"/>
+        </Style>
+    </Application.Styles>
+</Application>

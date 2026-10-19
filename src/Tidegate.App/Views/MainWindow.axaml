@@ -1,0 +1,186 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Tidegate.App.ViewModels"
+        xmlns:controls="using:Tidegate.App.Controls"
+        x:Class="Tidegate.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="潮閘 Tidegate"
+        Width="1120"
+        Height="760"
+        MinWidth="920"
+        MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="#121614"
+        FontFamily="PingFang TC, Hiragino Sans CNS, Heiti TC, sans-serif"
+        Foreground="#E7F0EA">
+    <DockPanel Margin="22">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,280" Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                <Border Width="46" Height="46" CornerRadius="14" Background="#D6F26A">
+                    <TextBlock Text="閘" FontSize="24" Foreground="#172016"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="潮閘" FontSize="26" FontWeight="SemiBold"/>
+                    <TextBlock Text="每個應用一條航道。看流速，再給它上限。" Foreground="#8FA399" FontSize="13"/>
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="#8FA399" FontSize="12"/>
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="22" VerticalAlignment="Center" Margin="24,0">
+                <StackPanel>
+                    <TextBlock Text="下載" Foreground="#8FA399" FontSize="12"/>
+                    <TextBlock Text="{Binding TotalDownloadText}" Foreground="#3DDC97" FontSize="22"
+                               FontFamily="Menlo, monospace"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="上傳" Foreground="#8FA399" FontSize="12"/>
+                    <TextBlock Text="{Binding TotalUploadText}" Foreground="#F0A36B" FontSize="22"
+                               FontFamily="Menlo, monospace"/>
+                </StackPanel>
+            </StackPanel>
+            <TextBox Grid.Column="2" Classes="field" PlaceholderText="搜尋應用程式"
+                     Text="{Binding SearchText}" VerticalAlignment="Center"/>
+        </Grid>
+
+        <Border DockPanel.Dock="Top" Background="#1B221F" CornerRadius="16" Padding="14,10" Margin="0,0,0,12">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="排列" Foreground="#8FA399" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <Button Classes="mode" Classes.selected="{Binding IsNameSort}"
+                            Command="{Binding SortByNameCommand}" Content="名稱"/>
+                    <Button Classes="mode" Classes.selected="{Binding IsSpeedSort}"
+                            Command="{Binding SortByTotalCommand}" Content="速度"/>
+                    <Button Classes="mode" Command="{Binding ToggleDirectionCommand}" Content="{Binding DirectionText}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsSpeedSort}" Margin="8,0,0,0">
+                        <Button Classes="mode" Classes.selected="{Binding IsTotalBasis}"
+                                Command="{Binding SortByTotalCommand}" Content="合計"/>
+                        <Button Classes="mode" Classes.selected="{Binding IsDownloadBasis}"
+                                Command="{Binding SortByDownloadCommand}" Content="下載"/>
+                        <Button Classes="mode" Classes.selected="{Binding IsUploadBasis}"
+                                Command="{Binding SortByUploadCommand}" Content="上傳"/>
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding SortDescription}" Foreground="#8FA399"
+                           VerticalAlignment="Center" Margin="16,0" TextTrimming="CharacterEllipsis"/>
+                <CheckBox Grid.Column="2" Content="隱藏低於 1 KB/s" IsChecked="{Binding HideIdle}"
+                          VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Background="#1B221F" CornerRadius="18" Padding="16" Margin="0,12,0,0">
+            <Grid ColumnDefinitions="1.3*,*" ColumnSpacing="18">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBlock Text="{Binding Selected.Name, FallbackValue=尚未選擇}" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding Selected.Detail, FallbackValue=選一條航道，查看曲線並設定上限。}"
+                                   Foreground="#8FA399" FontSize="12"/>
+                    </StackPanel>
+                    <controls:DualSparkline Download="{Binding SelectedDownload}"
+                                            Upload="{Binding SelectedUpload}"
+                                            DownloadCap="{Binding SelectedDownloadCap}"
+                                            UploadCap="{Binding SelectedUploadCap}"
+                                            Height="132"/>
+                </DockPanel>
+                <StackPanel Grid.Column="1" Spacing="8">
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="下載上限 KB/s" Foreground="#8FA399" FontSize="12"/>
+                            <TextBox Classes="field" PlaceholderText="不限制"
+                                     Text="{Binding DownloadCapText, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding HasSelection}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="上傳上限 KB/s" Foreground="#8FA399" FontSize="12"/>
+                            <TextBox Classes="field" PlaceholderText="不限制"
+                                     Text="{Binding UploadCapText, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding HasSelection}"/>
+                        </StackPanel>
+                    </Grid>
+                    <WrapPanel>
+                        <Button Classes="quiet" Margin="0,0,8,8" Content="保存上限" Command="{Binding SaveLimitCommand}"
+                                IsEnabled="{Binding !IsBusy}"/>
+                        <Button Classes="action" Margin="0,0,8,8" Content="套用上限" Command="{Binding ApplyCommand}"
+                                IsEnabled="{Binding !IsBusy}"/>
+                        <Button Classes="quiet" Margin="0,0,8,8" Content="預覽規則" Command="{Binding PreviewCommand}"
+                                IsEnabled="{Binding !IsBusy}"/>
+                        <Button Classes="quiet" Margin="0,0,8,8" Content="清除此上限" Command="{Binding ClearSelectedLimitCommand}"
+                                IsEnabled="{Binding !IsBusy}"/>
+                        <Button Classes="quiet" Margin="0,0,8,8" Content="清除系統規則" Command="{Binding ClearSystemCommand}"
+                                IsEnabled="{Binding !IsBusy}"/>
+                    </WrapPanel>
+                    <TextBlock Text="輸入 KB/s 後按套用上限。會先保存這個數字，再要求管理者權限。套用之後，新連線會自動補進同一條管線，現有連線也會重新套上上限。使用系統既有的 com.apple 錨點，不改寫 /etc/pf.conf。1 KB = 1000 位元組。"
+                               Foreground="#8FA399" FontSize="12" TextWrapping="Wrap"/>
+                    <TextBox Classes="field" IsReadOnly="True" Text="{Binding PlanPreview}"
+                             TextWrapping="Wrap" AcceptsReturn="True" Height="72"
+                             FontFamily="Menlo, monospace" FontSize="11"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Background="#1B221F" CornerRadius="18" Padding="8,8,8,4">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" ClipToBounds="True" ColumnDefinitions="44,2*,120,120,120,168" Margin="8,4,16,6">
+                    <Button Grid.Column="1" Classes="mode column" Classes.selected="{Binding NameHeaderSelected}"
+                            Command="{Binding SortByNameCommand}" Content="應用程式" HorizontalContentAlignment="Left"/>
+                    <Button Grid.Column="2" Classes="mode column" Classes.selected="{Binding DownloadHeaderSelected}"
+                            Command="{Binding SortByDownloadCommand}" Content="下載"/>
+                    <Button Grid.Column="3" Classes="mode column" Classes.selected="{Binding UploadHeaderSelected}"
+                            Command="{Binding SortByUploadCommand}" Content="上傳"/>
+                    <Button Grid.Column="4" Classes="mode column" Classes.selected="{Binding TotalHeaderSelected}"
+                            Command="{Binding SortByTotalCommand}" Content="合計"/>
+                    <TextBlock Grid.Column="5" Text="上限" Foreground="#8FA399" FontSize="12" VerticalAlignment="Center"/>
+                </Grid>
+                <Panel>
+                    <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}"
+                             Background="Transparent" BorderThickness="0">
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="4,0,4,6"/>
+                                <Setter Property="Background" Value="#121614"/>
+                                <Setter Property="Foreground" Value="#E7F0EA"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            </Style>
+                            <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                                <Setter Property="Background" Value="#24302A"/>
+                            </Style>
+                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                <Setter Property="Background" Value="#31443A"/>
+                            </Style>
+                            <Style Selector="ListBoxItem:selected">
+                                <Setter Property="Foreground" Value="#E7F0EA"/>
+                            </Style>
+                        </ListBox.Styles>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ChannelRowViewModel">
+                                <Grid ColumnDefinitions="44,2*,120,120,120,168" Margin="8,8">
+                                    <Border Width="32" Height="32" CornerRadius="10" Background="#24312A"
+                                            HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Initial}" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" Foreground="#D6F26A"/>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Text="{Binding Name}" FontSize="15" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Detail}" Foreground="#8FA399" FontSize="11"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding DownloadText}" Foreground="#3DDC97"
+                                               FontFamily="Menlo, monospace" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding UploadText}" Foreground="#F0A36B"
+                                               FontFamily="Menlo, monospace" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding TotalText}"
+                                               FontFamily="Menlo, monospace" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="5" Classes="cap" Classes.capped="{Binding HasCap}"
+                                               Text="{Binding CapText}"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock Text="{Binding EmptyMessage}" IsVisible="{Binding !HasRows}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="#8FA399" FontSize="16"/>
+                </Panel>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</Window>
