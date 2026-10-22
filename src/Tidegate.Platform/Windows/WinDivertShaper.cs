@@ -36,6 +36,7 @@ public sealed class WinDivertShaper : IDisposable
     private long _passedPackets;
     private long _parseFailures;
     private long _directionMismatches;
+    private long _droppedPackets;
     private readonly ConcurrentQueue<string> _samplePairs = new();
 
     public bool IsRunning { get; private set; }
@@ -50,6 +51,7 @@ public sealed class WinDivertShaper : IDisposable
         $"recv={Interlocked.Read(ref _receivedPackets)} "
         + $"match={Interlocked.Read(ref _matchedPackets)} "
         + $"queued={Interlocked.Read(ref _queuedPackets)} "
+        + $"drop={Interlocked.Read(ref _droppedPackets)} "
         + $"pass={Interlocked.Read(ref _passedPackets)} "
         + $"parseFail={Interlocked.Read(ref _parseFailures)} "
         + $"dirMismatch={Interlocked.Read(ref _directionMismatches)} "
@@ -272,14 +274,23 @@ public sealed class WinDivertShaper : IDisposable
                 Interlocked.Increment(ref _directionMismatches);
         }
 
-        if (pacer is not null && pacer.Queue.TryAdd(new QueuedPacket(data, address, outbound)))
+        if (pacer is not null)
         {
+            if (pacer.Queue.TryAdd(new QueuedPacket(data, address, outbound)))
+            {
+                Interlocked.Increment(ref _matchedPackets);
+                Interlocked.Increment(ref _queuedPackets);
+                return;
+            }
+
+            // 佇列滿了：丟棄，不要放行。
+            // 放行等於完全沒有限速；丟棄會讓 TCP 重傳並退讓，速度自然壓回上限。
             Interlocked.Increment(ref _matchedPackets);
-            Interlocked.Increment(ref _queuedPackets);
+            Interlocked.Increment(ref _droppedPackets);
             return;
         }
 
-        // 沒有限速、對不到應用程式，或佇列滿了：直接放行。
+        // 沒有限速或對不到應用程式：直接放行。
         Interlocked.Increment(ref _passedPackets);
         Send(data, address);
     }
@@ -312,6 +323,7 @@ public sealed class WinDivertShaper : IDisposable
 
     private void PortLoop(CancellationToken cancellationToken)
     {
+        var ticks = 0;
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -322,6 +334,10 @@ public sealed class WinDivertShaper : IDisposable
             {
                 WindowsLog.Write("shaper port refresh failed: " + exception.Message);
             }
+
+            // 每 10 秒留一行統計，事後要追「為什麼沒限到」才有依據。
+            if (++ticks % (10_000 / PortRefreshIntervalMs) == 0)
+                WindowsLog.Write("shaper " + DescribeStats());
 
             if (cancellationToken.WaitHandle.WaitOne(PortRefreshIntervalMs))
                 break;
