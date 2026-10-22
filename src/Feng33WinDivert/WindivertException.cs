@@ -30,7 +30,7 @@ public static class WindivertError
     /// <summary>把錯誤碼翻成可以給使用者看的句子。</summary>
     public static string Describe(int errorCode) => errorCode switch
     {
-        DriverMissing => "找不到 WinDivert.dll 或 WinDivert64.sys。",
+        DriverMissing => "找不到 WinDivert.dll 或 WinDivert64.sys（原生檔可改名為 Feng33WinDivert.Native.dll，驅動必須叫 WinDivert64.sys）。",
         FileNotFound => "找不到 WinDivert.dll 或 WinDivert64.sys。",
         ModuleNotFound => "WinDivert.dll 載入失敗（相依檔案不完整，或位元數不符）。",
         AccessDenied => "無法載入 WinDivert 驅動：存取被拒。請以系統管理員身分執行。",

@@ -41,6 +41,7 @@ public sealed class WindivertHandle : IDisposable
         IntPtr handle;
         try
         {
+            NativeLibraryLoader.EnsureRegistered();
             handle = WindivertNative.WinDivertOpen(filter, (int)layer, priority, (ulong)flags);
         }
         catch (DllNotFoundException exception)

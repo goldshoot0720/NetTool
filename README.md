@@ -77,6 +77,10 @@ macOS 沒有單一檔案這種形式，`dotnet publish -r osx-arm64` 產出的�
 2. 把 `x64/WinDivert.dll` 與 `x64/WinDivert64.sys` 放到程式目錄（開發時是 `src/Tidegate.App/bin/Debug/net10.0/`）
 3. 把該目錄加入 Windows Defender 的排除清單——Defender 會把這個驅動判定成 HackTool（本機實測 ThreatID 451610）
 
+原生 DLL 可以改名成 `Feng33WinDivert.Native.dll`（載入器會先找它，找不到才退回 `WinDivert.dll`），
+但驅動必須維持 `WinDivert64.sys`——WinDivert 內部把這個檔名寫死了。改名不影響 Defender 的判定，
+它看的是內容與簽章。
+
 行為：
 
 - 只有按「套用上限」才會開啟攔截；按「清除系統規則」或關閉程式就立刻停止，封包恢復原本路徑。

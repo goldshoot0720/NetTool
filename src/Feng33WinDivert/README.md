@@ -7,9 +7,12 @@ WinDivert 2.2 的受控封裝（C# / .NET 10）。提供攔截、讀取、注入
 - Windows 7 以上，且程式以系統管理員身分執行
 - 官方 WinDivert 2.2 的 `WinDivert.dll` 與 `WinDivert64.sys`，放在程式目錄
 
+原生 DLL 可以改名成 `Feng33WinDivert.Native.dll`（載入器會先找它，找不到才退回 `WinDivert.dll`），
+但**驅動必須維持 `WinDivert64.sys`**：WinDivert 內部寫死這個檔名，改名就找不到驅動。
+
 這個套件**不含**驅動本體。WinDivert 由 basil 開發、雙授權 LGPLv3 / GPLv2，請自行從
 `github.com/basil00/WinDivert/releases` 取得。驅動常被 Windows Defender 判定成 HackTool，
-使用前要把程式目錄加入排除清單。
+使用前要把程式目錄加入排除清單——改名不會改變偵測結果，Defender 看的是內容與簽章。
 
 ## 用法
 

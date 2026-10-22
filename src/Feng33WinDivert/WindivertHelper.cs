@@ -94,6 +94,7 @@ public static class WindivertHelper
 
             try
             {
+                NativeLibraryLoader.EnsureRegistered();
                 return WindivertNative.WinDivertHelperEvalFilter(
                     filter,
                     packetBuffer,
