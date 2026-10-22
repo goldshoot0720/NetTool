@@ -14,9 +14,9 @@ SS = 4
 LIME_TOP = (230, 250, 150)
 LIME_BOTTOM = (198, 231, 88)
 INK = (23, 32, 22)
-DROP = (58, 165, 124)
+DROP = (60, 150, 230)
 WHITE = (255, 255, 255)
-BLUSH = (240, 138, 106)
+BLUSH = (250, 168, 188)
 
 
 def fill_polygon(buf, width, points, color, alpha=255, gradient=None):
@@ -130,15 +130,20 @@ def draw(size, detailed):
     # 圓角方底
     round_rect(buf, width, 0, 0, width, width, s(232), LIME_TOP, gradient=(LIME_TOP, LIME_BOTTOM))
 
-    # 限速錶環：缺口朝下
-    arc_band(buf, width, s(512), s(512), s(404), s(300), 128, 284, INK)
+    # 限速錶環：缺口朝下，兩端做成圓頭
+    arc_band(buf, width, s(512), s(512), s(404), s(318), 132, 276, INK)
+    for angle_deg in (132, 408):
+        angle = math.radians(angle_deg)
+        radius = s(361)
+        ellipse(buf, width, s(512) + radius * math.cos(angle), s(512) + radius * math.sin(angle),
+                s(43), s(43), INK)
 
     # 水滴：頂端被錶環壓住
     points = []
-    points += bezier((s(512), s(268)), (s(372), s(372)), (s(300), s(486)), (s(300), s(596)))
-    points += bezier((s(300), s(596)), (s(300), s(724)), (s(396), s(812)), (s(512), s(812)))
-    points += bezier((s(512), s(812)), (s(628), s(812)), (s(724), s(724)), (s(724), s(596)))
-    points += bezier((s(724), s(596)), (s(724), s(486)), (s(652), s(372)), (s(512), s(268)))
+    points += bezier((s(512), s(292)), (s(384), s(388)), (s(317), s(494)), (s(317), s(596)))
+    points += bezier((s(317), s(596)), (s(317), s(712)), (s(404), s(792)), (s(512), s(792)))
+    points += bezier((s(512), s(792)), (s(620), s(792)), (s(707), s(712)), (s(707), s(596)))
+    points += bezier((s(707), s(596)), (s(707), s(494)), (s(640), s(388)), (s(512), s(292)))
     fill_polygon(buf, width, points, DROP)
 
     # 表情
@@ -150,8 +155,8 @@ def draw(size, detailed):
     if detailed:
         ellipse(buf, width, s(436), s(576), s(8), s(8), WHITE)
         ellipse(buf, width, s(576), s(576), s(8), s(8), WHITE)
-        ellipse(buf, width, s(362), s(654), s(32), s(22), BLUSH, alpha=140)
-        ellipse(buf, width, s(662), s(654), s(32), s(22), BLUSH, alpha=140)
+        ellipse(buf, width, s(362), s(654), s(32), s(22), BLUSH, alpha=210)
+        ellipse(buf, width, s(662), s(654), s(32), s(22), BLUSH, alpha=210)
         smile = bezier((s(482), s(664)), (s(490), s(700)), (s(534), s(700)), (s(542), s(664)), steps=24)
         stroke(buf, width, smile, s(16), INK)
 
