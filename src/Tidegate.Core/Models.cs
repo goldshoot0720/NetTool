@@ -80,9 +80,13 @@ public sealed record PipeSpec(int Number, long BitsPerSecond);
 public sealed record LimitPlan(
     IReadOnlyList<PipeSpec> Pipes,
     IReadOnlyList<string> Rules,
-    IReadOnlyList<string> Notes)
+    IReadOnlyList<string> Notes,
+    IReadOnlyList<LimitRule>? Limits = null)
 {
-    public bool HasWork => Pipes.Count > 0 && Rules.Count > 0;
+    public bool HasWork => Rules.Count > 0;
+
+    /// <summary>給需要結構化資料的平台（Windows 的封包節流）用。</summary>
+    public IReadOnlyList<LimitRule> EffectiveLimits => Limits ?? [];
 }
 
 public sealed record LimitApplyResult(bool Applied, string Message);

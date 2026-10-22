@@ -1,6 +1,10 @@
 bin/
 obj/
+artifacts/
 .DS_Store
 *.user
 .idea/
 .vs/
+
+# WorkBuddy 工作記憶，不進版控
+.workbuddy-ai/

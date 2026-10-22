@@ -23,15 +23,20 @@ public partial class App : Application
         {
             var store = new JsonLimitStore();
             var limits = store.Load();
+            var services = PlatformServices.Create(store.DirectoryPath);
             var board = new TrafficBoard(limits);
             _viewModel = new MainViewModel(
                 board,
-                new NettopTrafficSource(),
-                new PsProcessCatalog(),
-                new LsofConnectionLookup(),
-                new MacLimitGateway(store.DirectoryPath),
+                services.Traffic,
+                services.Catalog,
+                services.Connections,
+                services.Planner,
+                services.Gateway,
+                services.Elevation,
+                services.Capabilities,
                 store,
-                limits);
+                limits,
+                () => desktop.Shutdown());
             desktop.MainWindow = new MainWindow
             {
                 DataContext = _viewModel,

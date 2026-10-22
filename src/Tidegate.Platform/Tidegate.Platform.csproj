@@ -5,7 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Tidegate.Platform.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Tidegate.Core\Tidegate.Core.csproj" />
+    <ProjectReference Include="..\Feng33WinDivert\Feng33WinDivert.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

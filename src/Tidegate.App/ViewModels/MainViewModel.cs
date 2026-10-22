@@ -16,9 +16,13 @@ public partial class MainViewModel : ViewModelBase
     private readonly ITrafficSource _source;
     private readonly IProcessCatalog _catalog;
     private readonly IConnectionLookup _connections;
+    private readonly ILimitPlanner _planner;
     private readonly ILimitGateway _gateway;
+    private readonly IElevation _elevation;
     private readonly JsonLimitStore _store;
     private readonly LimitCatalog _limits;
+    private readonly PlatformCapabilities _capabilities;
+    private readonly Action? _shutdown;
     private CancellationTokenSource? _monitor;
     private volatile bool _shaping;
 
@@ -27,17 +31,25 @@ public partial class MainViewModel : ViewModelBase
         ITrafficSource source,
         IProcessCatalog catalog,
         IConnectionLookup connections,
+        ILimitPlanner planner,
         ILimitGateway gateway,
+        IElevation elevation,
+        PlatformCapabilities capabilities,
         JsonLimitStore store,
-        LimitCatalog limits)
+        LimitCatalog limits,
+        Action? shutdown = null)
     {
         _board = board;
         _source = source;
         _catalog = catalog;
         _connections = connections;
+        _planner = planner;
         _gateway = gateway;
+        _elevation = elevation;
+        _capabilities = capabilities;
         _store = store;
         _limits = limits;
+        _shutdown = shutdown;
         Rows = new ObservableCollection<ChannelRowViewModel>();
         HideIdle = board.HideIdle;
         StatusMessage = "正在讀取第一個樣本…";
@@ -46,6 +58,21 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public ObservableCollection<ChannelRowViewModel> Rows { get; }
+
+    public PlatformCapabilities Capabilities => _capabilities;
+
+    public string PlatformName => _capabilities.Name;
+
+    public string LimitHint => _capabilities.LimitHint;
+
+    public string ObservationHint => _capabilities.ObservationHint;
+
+    public bool SupportsDownloadLimit => _capabilities.SupportsDownloadLimit;
+
+    public bool CanElevate => _capabilities.RequiresElevation && !_elevation.IsElevated;
+
+    public string ElevationMessage =>
+        $"{_capabilities.Name} 版要讀取每個應用程式的流量，需要系統管理員權限。按右邊的按鈕會開啟一個提權的視窗，這個視窗會關閉。";
 
     [ObservableProperty]
     private string _searchText = "";
@@ -133,6 +160,13 @@ public partial class MainViewModel : ViewModelBase
 
     public void Start()
     {
+        if (_capabilities.RequiresElevation && !_elevation.IsElevated)
+        {
+            StatusMessage = "尚未開始觀測。";
+            EmptyMessage = "還沒有開始觀測。";
+            return;
+        }
+
         _monitor?.Cancel();
         _monitor = new CancellationTokenSource();
         _ = ObserveAsync(_monitor.Token);
@@ -176,6 +210,18 @@ public partial class MainViewModel : ViewModelBase
         DownloadCapText = FormatCap(value?.DownloadCapBytesPerSecond);
         UploadCapText = FormatCap(value?.UploadCapBytesPerSecond);
         RefreshSeries();
+    }
+
+    [RelayCommand]
+    private void RestartElevated()
+    {
+        if (_elevation.TryRestartElevated(out var message))
+        {
+            _shutdown?.Invoke();
+            return;
+        }
+
+        StatusMessage = message;
     }
 
     [RelayCommand]
@@ -243,7 +289,7 @@ public partial class MainViewModel : ViewModelBase
         PlanPreview = Render(plan);
         StatusMessage = plan.HasWork
             ? "已產生規則預覽，尚未寫入系統。"
-            : "上限已保存，但目前沒有可塑形的外部連線。";
+            : "沒有可套用的規則，原因寫在下面的預覽。";
     }
 
     [RelayCommand]
@@ -261,12 +307,12 @@ public partial class MainViewModel : ViewModelBase
         PlanPreview = Render(plan);
         if (!plan.HasWork)
         {
-            StatusMessage = "上限已保存，但目前沒有可塑形的外部連線。";
+            StatusMessage = "沒有可套用的規則，原因寫在下面的預覽。";
             return;
         }
 
         IsBusy = true;
-        StatusMessage = "正在要求管理者權限。同意之後，上限才會作用在目前的連線。";
+        StatusMessage = "正在要求管理者權限。同意之後，上限才會作用在連線上。";
         try
         {
             var result = await _gateway.ApplyAsync(plan, _monitor?.Token ?? CancellationToken.None);
@@ -326,7 +372,8 @@ public partial class MainViewModel : ViewModelBase
             var sockets = pids.Length == 0
                 ? Array.Empty<FlowSocket>()
                 : await _connections.LookupAsync(pids, _monitor?.Token ?? CancellationToken.None);
-            return LimitPlanner.Build(apps, sockets);
+            var paths = await _catalog.CommandPathsAsync(_monitor?.Token ?? CancellationToken.None);
+            return _planner.Build(apps, sockets, paths);
         }
         catch (OperationCanceledException)
         {
@@ -353,7 +400,7 @@ public partial class MainViewModel : ViewModelBase
                     if (string.IsNullOrWhiteSpace(StatusMessage) || StatusMessage.StartsWith("正在讀取", StringComparison.Ordinal))
                         StatusMessage = "外部流量觀測中。";
                 });
-                if (_shaping)
+                if (_shaping && _capabilities.TracksLiveConnections)
                     await RefreshShapingAsync(cancellationToken);
             }
         }
@@ -386,7 +433,8 @@ public partial class MainViewModel : ViewModelBase
         var sockets = pids.Length == 0
             ? Array.Empty<FlowSocket>()
             : await _connections.LookupAsync(pids, cancellationToken);
-        _gateway.Stage(LimitPlanner.Build(apps, sockets));
+        var paths = await _catalog.CommandPathsAsync(cancellationToken);
+        _gateway.Stage(_planner.Build(apps, sockets, paths));
     }
 
     private void Publish(TrafficBoardState state)

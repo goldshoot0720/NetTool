@@ -1,10 +1,13 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Feng33WinDivert/Feng33WinDivert.csproj" />
     <Project Path="src/Tidegate.App/Tidegate.App.csproj" />
     <Project Path="src/Tidegate.Core/Tidegate.Core.csproj" />
     <Project Path="src/Tidegate.Platform/Tidegate.Platform.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Feng33WinDivert.Tests/Feng33WinDivert.Tests.csproj" />
     <Project Path="tests/Tidegate.Core.Tests/Tidegate.Core.Tests.csproj" />
+    <Project Path="tests/Tidegate.Platform.Tests/Tidegate.Platform.Tests.csproj" />
   </Folder>
 </Solution>
