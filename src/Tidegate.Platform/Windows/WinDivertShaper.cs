@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using Feng33WinDivert;
 using Tidegate.Core;
 
 namespace Tidegate.Platform.Windows;

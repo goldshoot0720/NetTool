@@ -10,13 +10,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Tidegate.Core\Tidegate.Core.csproj" />
-    <ProjectReference Include="..\Feng33WinDivert\Feng33WinDivert.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- WinDivert 的封包緩衝區用 fixed 指標傳給原生函式。 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
 </Project>

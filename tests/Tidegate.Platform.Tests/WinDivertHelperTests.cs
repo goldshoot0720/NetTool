@@ -1,6 +1,6 @@
-using Feng33WinDivert;
+using Tidegate.Platform.Windows;
 
-namespace Feng33WinDivert.Tests;
+namespace Tidegate.Platform.Tests;
 
 public class WindivertHelperTests
 {

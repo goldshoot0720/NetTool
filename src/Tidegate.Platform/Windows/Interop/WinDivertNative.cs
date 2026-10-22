@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Feng33WinDivert;
+namespace Tidegate.Platform.Windows;
 
 /// <summary>
 /// WinDivert 2.2 的原生進入點。函式簽章與 include/windivert.h 一致。

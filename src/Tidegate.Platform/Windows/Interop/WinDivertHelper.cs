@@ -1,11 +1,11 @@
 using System.Runtime.InteropServices;
 
-namespace Feng33WinDivert;
+namespace Tidegate.Platform.Windows;
 
 /// <summary>
 /// 封包標頭解析。只用受控程式碼讀，不需要驅動，因此可以單獨測試。
 /// </summary>
-public static class WindivertHelper
+internal static class WindivertHelper
 {
     private const int Ipv4MinimumLength = 20;
     private const int Ipv6HeaderLength = 40;
@@ -94,7 +94,6 @@ public static class WindivertHelper
 
             try
             {
-                NativeLibraryLoader.EnsureRegistered();
                 return WindivertNative.WinDivertHelperEvalFilter(
                     filter,
                     packetBuffer,

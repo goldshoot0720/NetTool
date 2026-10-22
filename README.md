@@ -77,9 +77,8 @@ macOS 沒有單一檔案這種形式，`dotnet publish -r osx-arm64` 產出的�
 2. 把 `x64/WinDivert.dll` 與 `x64/WinDivert64.sys` 放到程式目錄（開發時是 `src/Tidegate.App/bin/Debug/net10.0/`）
 3. 把該目錄加入 Windows Defender 的排除清單——Defender 會把這個驅動判定成 HackTool（本機實測 ThreatID 451610）
 
-原生 DLL 可以改名成 `Feng33WinDivert.Native.dll`（載入器會先找它，找不到才退回 `WinDivert.dll`），
-但驅動必須維持 `WinDivert64.sys`——WinDivert 內部把這個檔名寫死了。改名不影響 Defender 的判定，
-它看的是內容與簽章。
+原生 DLL 與驅動都必須維持原名：`WinDivert.dll` 與 `WinDivert64.sys`。WinDivert 內部把驅動檔名寫死了，
+改名就找不到。改名也不會影響 Defender 的判定，它看的是內容與簽章。
 
 行為：
 
@@ -95,15 +94,7 @@ macOS 沒有單一檔案這種形式，`dotnet publish -r osx-arm64` 產出的�
 | `src/Tidegate.Core` | 與平台無關的邏輯：聚合、排序、速率計算、限速計畫 |
 | `src/Tidegate.Platform` | 平台實作：macOS 的 nettop／pf，Windows 的 ESTATS／封包節流 |
 | `src/Tidegate.App` | Avalonia 介面 |
-| `src/Feng33WinDivert` | WinDivert 2.2 的受控封裝，獨立可重用 |
 
-`Feng33WinDivert` 是照 WinDivert 的 C API 形狀寫的：`WindivertHandle.Open/Receive/Send/Close`、
-`WindivertAddress`（80 位元組的封包脈絡）、`WindivertHelper` 的標頭解析。
-標頭解析只用受控程式碼，不需要驅動，所以可以單獨測試。
-
-```bash
-dotnet pack src/Feng33WinDivert -c Release -o artifacts
-```
-
-產出 `Feng33WinDivert.1.0.0.nupkg`。套件不含驅動本體，使用前仍需自備
-`WinDivert.dll` 與 `WinDivert64.sys`。授權沿用 LGPL-3.0-or-later。
+WinDivert 的互操作放在 `src/Tidegate.Platform/Windows/Interop/`，是 `Tidegate.Platform` 的內部實作：
+`WindivertHandle`（開／收／送／關）、`WindivertAddress`（80 位元組的封包脈絡）、
+`WindivertHelper`（標頭解析）。標頭解析只用受控程式碼，不需要驅動，所以可以單獨測試。

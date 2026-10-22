@@ -1,10 +1,10 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
-namespace Feng33WinDivert;
+namespace Tidegate.Platform.Windows;
 
 /// <summary>封包被攔截的層級。</summary>
-public enum WindivertLayer
+internal enum WindivertLayer
 {
     /// <summary>網路層，一般的封包攔截。</summary>
     Network = 0,
@@ -24,7 +24,7 @@ public enum WindivertLayer
 
 /// <summary>開啟攔截時的旗標。</summary>
 [Flags]
-public enum WindivertOpenFlags : ulong
+internal enum WindivertOpenFlags : ulong
 {
     None = 0,
 
@@ -48,7 +48,7 @@ public enum WindivertOpenFlags : ulong
 }
 
 /// <summary>可以調整的 handle 參數。</summary>
-public enum WindivertParam
+internal enum WindivertParam
 {
     QueueLength = 0,
     QueueTime = 1,
@@ -61,7 +61,7 @@ public enum WindivertParam
 /// 封包的脈絡資訊（WINDIVERT_ADDRESS，80 位元組）。
 /// 送回去的時候要原封不動，否則封包會被丟棄。
 /// </summary>
-public readonly struct WindivertAddress
+internal readonly struct WindivertAddress
 {
     /// <summary>原生結構的大小。</summary>
     public const int Size = 80;

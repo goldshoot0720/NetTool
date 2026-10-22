@@ -1,12 +1,12 @@
 using System.Runtime.InteropServices;
 
-namespace Feng33WinDivert;
+namespace Tidegate.Platform.Windows;
 
 /// <summary>
 /// 一個攔截 handle。開啟後符合過濾條件的封包會被攔下來，
 /// 呼叫端必須把每個收到的封包 <see cref="Send"/> 回去，否則它就不會繼續傳遞。
 /// </summary>
-public sealed class WindivertHandle : IDisposable
+internal sealed class WindivertHandle : IDisposable
 {
     /// <summary>單一封包的最大長度（含 IPv6 標頭）。</summary>
     public const int MtuMax = 40 + 0xFFFF;
@@ -41,7 +41,6 @@ public sealed class WindivertHandle : IDisposable
         IntPtr handle;
         try
         {
-            NativeLibraryLoader.EnsureRegistered();
             handle = WindivertNative.WinDivertOpen(filter, (int)layer, priority, (ulong)flags);
         }
         catch (DllNotFoundException exception)
