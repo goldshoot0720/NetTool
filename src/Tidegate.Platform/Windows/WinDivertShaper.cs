@@ -14,7 +14,9 @@ namespace Tidegate.Platform.Windows;
 public sealed class WinDivertShaper : IDisposable
 {
     private const string Filter = "tcp";
-    private const int QueueCapacity = 512;
+    // 佇列要夠深才能吸收連線的突發量。太淺會一直丟包，
+    // TCP 一退讓速度就遠低於上限（實測 3.3 MB/s 只剩 1.9 MB/s）。
+    private const int QueueCapacity = 2048;
     private const ulong QueueLength = 8192;
     private const ulong QueueTimeMilliseconds = 1000;
     private const int PortRefreshIntervalMs = 250;
