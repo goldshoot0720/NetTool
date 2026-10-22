@@ -17,7 +17,7 @@ public sealed class WinDivertShaper : IDisposable
     private const int QueueCapacity = 512;
     private const ulong QueueLength = 8192;
     private const ulong QueueTimeMilliseconds = 1000;
-    private const int PortRefreshIntervalMs = 1000;
+    private const int PortRefreshIntervalMs = 250;
     private const int MaxConsecutiveReceiveFailures = 32;
 
     private readonly object _gate = new();
@@ -30,10 +30,31 @@ public sealed class WinDivertShaper : IDisposable
     private Thread? _receiveThread;
     private Thread? _portThread;
     private bool _disposed;
+    private long _receivedPackets;
+    private long _matchedPackets;
+    private long _queuedPackets;
+    private long _passedPackets;
+    private long _parseFailures;
+    private long _directionMismatches;
+    private readonly ConcurrentQueue<string> _samplePairs = new();
 
     public bool IsRunning { get; private set; }
 
+    /// <summary>把每次埠表刷新寫進 windows.log，除錯用。</summary>
+    public bool Verbose { get; set; }
+
     public IReadOnlyCollection<string> Apps => _pacers.Keys;
+
+    /// <summary>診斷用的封包計數。</summary>
+    public string DescribeStats() =>
+        $"recv={Interlocked.Read(ref _receivedPackets)} "
+        + $"match={Interlocked.Read(ref _matchedPackets)} "
+        + $"queued={Interlocked.Read(ref _queuedPackets)} "
+        + $"pass={Interlocked.Read(ref _passedPackets)} "
+        + $"parseFail={Interlocked.Read(ref _parseFailures)} "
+        + $"dirMismatch={Interlocked.Read(ref _directionMismatches)} "
+        + $"ports={_ports.Count} "
+        + $"pairs=[{string.Join(",", _samplePairs.Take(6))}]";
 
     public LimitApplyResult Start(IReadOnlyList<LimitRule> limits)
     {
@@ -63,6 +84,7 @@ public sealed class WinDivertShaper : IDisposable
             _handle = handle;
             _cancellation = new CancellationTokenSource();
             IsRunning = true;
+            Win32.BeginHighResolutionTimers();
 
             BuildPacers(limits);
             var token = _cancellation.Token;
@@ -173,6 +195,7 @@ public sealed class WinDivertShaper : IDisposable
 
         _cancellation?.Dispose();
         _cancellation = null;
+        Win32.EndHighResolutionTimers();
     }
 
     private void ReceiveLoop(CancellationToken cancellationToken)
@@ -212,6 +235,7 @@ public sealed class WinDivertShaper : IDisposable
                 }
 
                 failures = 0;
+                Interlocked.Increment(ref _receivedPackets);
                 var data = new byte[length];
                 Array.Copy(buffer, data, length);
                 Dispatch(data, address);
@@ -226,17 +250,48 @@ public sealed class WinDivertShaper : IDisposable
     private void Dispatch(byte[] data, WindivertAddress address)
     {
         var outbound = address.Outbound;
-        if (WindivertHelper.TryGetLocalPort(data, outbound, out var port)
-            && _ports.TryGetValue(port, out var app)
-            && _pacers.TryGetValue(app, out var pacer)
-            && (outbound ? pacer.Upload is not null : pacer.Download is not null)
-            && pacer.Queue.TryAdd(new QueuedPacket(data, address, outbound)))
+        if (!WindivertHelper.TryGetTcpPorts(data, out var source, out var destination))
         {
+            Interlocked.Increment(ref _parseFailures);
+            Interlocked.Increment(ref _passedPackets);
+            Send(data, address);
+            return;
+        }
+
+        if (_ports.Count > 0 && _samplePairs.Count < 10)
+            _samplePairs.Enqueue($"{source}>{destination}{(outbound ? "o" : "i")}");
+
+        var preferred = outbound ? (int)source : destination;
+        var fallback = outbound ? destination : (int)source;
+
+        var pacer = FindPacer(preferred, outbound);
+        if (pacer is null)
+        {
+            pacer = FindPacer(fallback, outbound);
+            if (pacer is not null)
+                Interlocked.Increment(ref _directionMismatches);
+        }
+
+        if (pacer is not null && pacer.Queue.TryAdd(new QueuedPacket(data, address, outbound)))
+        {
+            Interlocked.Increment(ref _matchedPackets);
+            Interlocked.Increment(ref _queuedPackets);
             return;
         }
 
         // 沒有限速、對不到應用程式，或佇列滿了：直接放行。
+        Interlocked.Increment(ref _passedPackets);
         Send(data, address);
+    }
+
+    private AppPacer? FindPacer(int port, bool outbound)
+    {
+        if (!_ports.TryGetValue(port, out var app))
+            return null;
+        if (!_pacers.TryGetValue(app, out var pacer))
+            return null;
+        return outbound ? (pacer.Upload is not null ? pacer : null)
+                        : (pacer.Download is not null ? pacer : null);
     }
 
     private void Send(byte[] data, WindivertAddress address)
@@ -278,6 +333,7 @@ public sealed class WinDivertShaper : IDisposable
         if (_pacers.Count == 0)
             return;
 
+        var started = Stopwatch.GetTimestamp();
         var paths = _catalog.CommandPathsAsync(cancellationToken).GetAwaiter().GetResult();
         var connections = WindowsTcpTable.Read();
         var map = new Dictionary<int, string>();
@@ -299,6 +355,13 @@ public sealed class WinDivertShaper : IDisposable
         _ports.Clear();
         foreach (var entry in map)
             _ports[entry.Key] = entry.Value;
+
+        if (Verbose)
+        {
+            var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            var sample = string.Join(",", map.Take(4).Select(entry => $"{entry.Key}:{entry.Value}"));
+            WindowsLog.Write($"ports conns={connections.Count} paths={paths.Count} mapped={map.Count} took={elapsed:0}ms [{sample}]");
+        }
     }
 
     private void BuildPacers(IReadOnlyList<LimitRule> limits)
@@ -439,8 +502,11 @@ public sealed class WinDivertShaper : IDisposable
                 if (bucket is not null)
                 {
                     var wait = bucket.Reserve(packet.Data.Length, Stopwatch.GetTimestamp());
-                    if (wait > TimeSpan.Zero && wait < TimeSpan.FromSeconds(5))
-                        Thread.Sleep(wait);
+
+                    // Thread.Sleep 的預設精度是 15.6ms，逐封包睡會把速度壓到遠低於上限。
+                    // 小於 1ms 的等待直接跳過，欠的時間會累積到下一個封包。
+                    if (wait >= TimeSpan.FromMilliseconds(1) && wait < TimeSpan.FromSeconds(5))
+                        Thread.Sleep((int)Math.Ceiling(wait.TotalMilliseconds));
                 }
             }
 

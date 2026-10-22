@@ -23,7 +23,10 @@ public sealed class WindowsElevation : IElevation
     }
 
     /// <summary>用 UAC 重新啟動一份提權的自己。使用者取消時回傳 false。</summary>
-    public bool TryStartElevated()
+    public bool TryStartElevated() => TryStartElevated([]);
+
+    /// <summary>用 UAC 重新啟動一份提權的自己，並把參數帶過去。</summary>
+    public bool TryStartElevated(IEnumerable<string> arguments)
     {
         var path = Environment.ProcessPath;
         if (string.IsNullOrEmpty(path))
@@ -34,12 +37,18 @@ public sealed class WindowsElevation : IElevation
 
         try
         {
-            Process.Start(new ProcessStartInfo(path)
+            var start = new ProcessStartInfo(path)
             {
                 UseShellExecute = true,
                 Verb = "runas",
                 WorkingDirectory = AppContext.BaseDirectory,
-            });
+            };
+
+            var list = arguments.ToArray();
+            if (list.Length > 0)
+                start.Arguments = string.Join(' ', list.Select(Quote));
+
+            Process.Start(start);
             return true;
         }
         catch (Win32Exception)
@@ -53,6 +62,11 @@ public sealed class WindowsElevation : IElevation
             return false;
         }
     }
+
+    private static string Quote(string value) =>
+        value.Contains(' ') || value.Contains('"')
+            ? "\"" + value.Replace("\"", "\\\"") + "\""
+            : value;
 
     private string? _lastError;
 

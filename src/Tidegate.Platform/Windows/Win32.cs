@@ -163,4 +163,36 @@ internal static class Win32
         out int information,
         int length,
         out int returned);
+
+    [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+    private static extern uint TimeBeginPeriod(uint milliseconds);
+
+    [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+    private static extern uint TimeEndPeriod(uint milliseconds);
+
+    /// <summary>
+    /// 把系統計時器精度提到 1ms。節流器每個封包只睡 1~2ms，
+    /// 用預設的 15.6ms 精度會把速度壓到遠低於設定的上限。
+    /// </summary>
+    internal static void BeginHighResolutionTimers()
+    {
+        try
+        {
+            TimeBeginPeriod(1);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    internal static void EndHighResolutionTimers()
+    {
+        try
+        {
+            TimeEndPeriod(1);
+        }
+        catch (Exception)
+        {
+        }
+    }
 }
