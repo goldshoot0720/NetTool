@@ -78,6 +78,41 @@
             </Grid>
         </Border>
 
+        <Border DockPanel.Dock="Top" Background="#1B221F" CornerRadius="16" Padding="16,12" Margin="0,0,0,12"
+                IsVisible="{Binding HasSelfTestRows}">
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="本機自測" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock Text="量節流器本身放行的速度：不需要驅動、不需要網路，也不必提權。"
+                                   Foreground="#8FA399" FontSize="11"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="quiet" Content="收起" Command="{Binding ClearSelfTestCommand}"
+                            VerticalAlignment="Center"/>
+                </Grid>
+                <Grid ColumnDefinitions="150,150,*" Margin="0,4,0,0">
+                    <TextBlock Text="上限" Foreground="#8FA399" FontSize="11"/>
+                    <TextBlock Grid.Column="1" Text="實測" Foreground="#8FA399" FontSize="11"/>
+                    <TextBlock Grid.Column="2" Text="達成率" Foreground="#8FA399" FontSize="11"/>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding SelfTestRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SelfTestRowViewModel">
+                            <Grid ColumnDefinitions="150,150,*" Margin="0,1">
+                                <TextBlock Text="{Binding TargetText}" FontFamily="Menlo, Consolas, monospace" FontSize="13"/>
+                                <TextBlock Grid.Column="1" Text="{Binding AchievedText}"
+                                           FontFamily="Menlo, Consolas, monospace" FontSize="13"/>
+                                <TextBlock Grid.Column="2" Classes="ratio" Classes.out="{Binding !IsWithinTolerance}"
+                                           Text="{Binding RatioText}"
+                                           FontFamily="Menlo, Consolas, monospace" FontSize="13"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding SelfTestSummary}" Foreground="#8FA399" FontSize="12" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
         <Border DockPanel.Dock="Bottom" Background="#1B221F" CornerRadius="18" Padding="16" Margin="0,12,0,0">
             <Grid ColumnDefinitions="1.3*,*" ColumnSpacing="18">
                 <DockPanel>
@@ -121,6 +156,8 @@
                         <Button Classes="quiet" Margin="0,0,8,8" Content="清除此上限" Command="{Binding ClearSelectedLimitCommand}"
                                 IsEnabled="{Binding !IsBusy}"/>
                         <Button Classes="quiet" Margin="0,0,8,8" Content="清除系統規則" Command="{Binding ClearSystemCommand}"
+                                IsEnabled="{Binding !IsBusy}"/>
+                        <Button Classes="quiet" Margin="0,0,8,8" Content="本機自測" Command="{Binding RunSelfTestCommand}"
                                 IsEnabled="{Binding !IsBusy}"/>
                     </WrapPanel>
                     <TextBlock Text="{Binding LimitHint}"

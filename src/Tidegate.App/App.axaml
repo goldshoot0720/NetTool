@@ -101,6 +101,12 @@
         <Style Selector="TextBlock.cap.capped">
             <Setter Property="Foreground" Value="#D6F26A"/>
         </Style>
+        <Style Selector="TextBlock.ratio">
+            <Setter Property="Foreground" Value="#3DDC97"/>
+        </Style>
+        <Style Selector="TextBlock.ratio.out">
+            <Setter Property="Foreground" Value="#F0A36B"/>
+        </Style>
         <Style Selector="TextBox.field">
             <Setter Property="Background" Value="#101614"/>
             <Setter Property="Foreground" Value="#E7F0EA"/>

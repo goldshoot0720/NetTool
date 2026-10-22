@@ -6,12 +6,15 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Tidegate.Core;
 using Tidegate.Platform;
+using Tidegate.Platform.Windows;
 using SortKey = Tidegate.Core.SortKey;
 
 namespace Tidegate.App.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
+    private static readonly TimeSpan SelfTestDuration = TimeSpan.FromSeconds(1.5);
+
     private readonly TrafficBoard _board;
     private readonly ITrafficSource _source;
     private readonly IProcessCatalog _catalog;
@@ -58,6 +61,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public ObservableCollection<ChannelRowViewModel> Rows { get; }
+
+    /// <summary>本機自測的結果，跑一次填一列。</summary>
+    public ObservableCollection<SelfTestRowViewModel> SelfTestRows { get; } = new();
 
     public PlatformCapabilities Capabilities => _capabilities;
 
@@ -142,6 +148,12 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isBusy;
+
+    [ObservableProperty]
+    private bool _hasSelfTestRows;
+
+    [ObservableProperty]
+    private string _selfTestSummary = "";
 
     [ObservableProperty]
     private ChannelRowViewModel? _selected;
@@ -355,6 +367,58 @@ public partial class MainViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// 本機自測：直接量節流器放行的速度。不需要驅動、不需要網路，也不必提權，
+    /// 所以就算觀測沒開、沒有管理員權限也能按。一組速率跑完就補一列。
+    /// </summary>
+    [RelayCommand]
+    private async Task RunSelfTestAsync()
+    {
+        if (IsBusy)
+            return;
+
+        IsBusy = true;
+        SelfTestRows.Clear();
+        HasSelfTestRows = true;
+        SelfTestSummary = "量測中…";
+        var failed = 0;
+
+        try
+        {
+            foreach (var kiloBytes in PacerBenchmark.DefaultRatesKiloBytes)
+            {
+                StatusMessage = $"本機自測：{kiloBytes:0} KB/s…";
+                var result = await Task.Run(() => PacerBenchmark.Run(kiloBytes * 1000, SelfTestDuration));
+                var row = new SelfTestRowViewModel(result);
+                if (!row.IsWithinTolerance)
+                    failed++;
+                SelfTestRows.Add(row);
+            }
+
+            SelfTestSummary = failed == 0
+                ? $"{SelfTestRows.Count} 組都在 ±3% 內。這裡只算節流器本身，不含驅動與 TCP 的行為。"
+                : $"有 {failed} 組超出 ±3%。";
+            StatusMessage = "本機自測完成。";
+        }
+        catch (Exception ex)
+        {
+            SelfTestSummary = "自測失敗：" + ex.Message;
+            StatusMessage = SelfTestSummary;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearSelfTest()
+    {
+        SelfTestRows.Clear();
+        HasSelfTestRows = false;
+        SelfTestSummary = "";
     }
 
     private async Task<LimitPlan?> BuildPlanAsync()

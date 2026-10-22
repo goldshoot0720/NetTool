@@ -8,22 +8,20 @@ namespace Tidegate.Platform.Windows;
 /// 用 WinDivert 在網路層做逐應用程式的雙向節流。
 ///
 /// 只在使用者按了「套用上限」之後才開 handle；handle 一關，所有封包恢復原本路徑。
-/// 節流方式是「排隊＋漏桶」而不是丟包，佇列滿的時候寧可直接放行（fail open），
-/// 避免因為節流器跟不上而讓整個連線停住。
+/// 節流方式是「排隊＋令牌桶」而不是丟包，佇列滿的時候寧可丟棄也不放行——
+/// 放行等於沒有限速，丟棄會讓 TCP 重傳並退讓，速度自然壓回上限。
 /// </summary>
 public sealed class WinDivertShaper : IDisposable
 {
     private const string Filter = "tcp";
-    // 佇列要夠深才能吸收連線的突發量。太淺會一直丟包，
-    // TCP 一退讓速度就遠低於上限（實測 3.3 MB/s 只剩 1.9 MB/s）。
-    private const int QueueCapacity = 2048;
+    // WinDivert 自己的佇列也要夠深，不然驅動先丟，我們連排隊的機會都沒有。
     private const ulong QueueLength = 8192;
     private const ulong QueueTimeMilliseconds = 1000;
     private const int PortRefreshIntervalMs = 250;
     private const int MaxConsecutiveReceiveFailures = 32;
 
     private readonly object _gate = new();
-    private readonly Dictionary<string, AppPacer> _pacers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, PacedSender<QueuedPacket>> _pacers = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<int, string> _ports = new();
     private readonly WindowsProcessCatalog _catalog = new();
 
@@ -39,6 +37,8 @@ public sealed class WinDivertShaper : IDisposable
     private long _parseFailures;
     private long _directionMismatches;
     private long _droppedPackets;
+    private long _sentPackets;
+    private long _sentBytes;
     private readonly ConcurrentQueue<string> _samplePairs = new();
 
     public bool IsRunning { get; private set; }
@@ -55,6 +55,8 @@ public sealed class WinDivertShaper : IDisposable
         + $"queued={Interlocked.Read(ref _queuedPackets)} "
         + $"drop={Interlocked.Read(ref _droppedPackets)} "
         + $"pass={Interlocked.Read(ref _passedPackets)} "
+        + $"sent={Interlocked.Read(ref _sentPackets)} "
+        + $"sentBytes={Interlocked.Read(ref _sentBytes)} "
         + $"parseFail={Interlocked.Read(ref _parseFailures)} "
         + $"dirMismatch={Interlocked.Read(ref _directionMismatches)} "
         + $"ports={_ports.Count} "
@@ -141,7 +143,7 @@ public sealed class WinDivertShaper : IDisposable
             {
                 if (_pacers.ContainsKey(limit.AppName))
                     continue;
-                var pacer = new AppPacer(limit, () => _handle, Send);
+                var pacer = CreatePacer(limit);
                 _pacers[limit.AppName] = pacer;
                 pacer.Start();
             }
@@ -175,9 +177,7 @@ public sealed class WinDivertShaper : IDisposable
         // 先把佇列裡的封包送完，handle 還開著才送得出去。
         var pacers = _pacers.Values.ToArray();
         foreach (var pacer in pacers)
-            pacer.Queue.CompleteAdding();
-        foreach (var pacer in pacers)
-            pacer.WaitForExit(500);
+            pacer.Stop();
         foreach (var pacer in pacers)
             pacer.Dispose();
 
@@ -254,7 +254,8 @@ public sealed class WinDivertShaper : IDisposable
     private void Dispatch(byte[] data, WindivertAddress address)
     {
         var outbound = address.Outbound;
-        if (!WindivertHelper.TryGetTcpPorts(data, out var source, out var destination))
+        if (!WindivertHelper.TryGetTcpPorts(data, out var source, out var destination)
+            || !WindivertHelper.TryGetTcpPayloadLength(data, out var payload))
         {
             Interlocked.Increment(ref _parseFailures);
             Interlocked.Increment(ref _passedPackets);
@@ -270,41 +271,51 @@ public sealed class WinDivertShaper : IDisposable
 
         var pacer = FindPacer(preferred, outbound);
         if (pacer is null)
-        {
-            pacer = FindPacer(fallback, outbound);
-            if (pacer is not null)
-                Interlocked.Increment(ref _directionMismatches);
-        }
+            pacer = FindPacer(fallback, outbound, countMismatch: true);
 
-        if (pacer is not null)
+        if (pacer is null)
         {
-            if (pacer.Queue.TryAdd(new QueuedPacket(data, address, outbound)))
-            {
-                Interlocked.Increment(ref _matchedPackets);
-                Interlocked.Increment(ref _queuedPackets);
-                return;
-            }
-
-            // 佇列滿了：丟棄，不要放行。
-            // 放行等於完全沒有限速；丟棄會讓 TCP 重傳並退讓，速度自然壓回上限。
-            Interlocked.Increment(ref _matchedPackets);
-            Interlocked.Increment(ref _droppedPackets);
+            // 沒有限速或對不到應用程式：直接放行。
+            Interlocked.Increment(ref _passedPackets);
+            Send(data, address);
             return;
         }
 
-        // 沒有限速或對不到應用程式：直接放行。
-        Interlocked.Increment(ref _passedPackets);
-        Send(data, address);
+        Interlocked.Increment(ref _matchedPackets);
+
+        // 純 ACK 沒有酬載，不佔額度也不該排隊：塞進佇列只會擠掉資料封包，
+        // 讓整條連線一起卡住。
+        if (payload <= 0)
+        {
+            Interlocked.Increment(ref _passedPackets);
+            Send(data, address);
+            return;
+        }
+
+        if (pacer.TryEnqueue(new QueuedPacket(data, address, payload), outbound))
+        {
+            Interlocked.Increment(ref _queuedPackets);
+            return;
+        }
+
+        // 佇列滿了：丟棄，不要放行。
+        // 放行等於完全沒有限速；丟棄會讓 TCP 重傳並退讓，速度自然壓回上限。
+        Interlocked.Increment(ref _droppedPackets);
     }
 
-    private AppPacer? FindPacer(int port, bool outbound)
+    private PacedSender<QueuedPacket>? FindPacer(int port, bool outbound, bool countMismatch = false)
     {
         if (!_ports.TryGetValue(port, out var app))
             return null;
         if (!_pacers.TryGetValue(app, out var pacer))
             return null;
-        return outbound ? (pacer.Upload is not null ? pacer : null)
-                        : (pacer.Download is not null ? pacer : null);
+        if (!pacer.Limits(outbound))
+            return null;
+
+        if (countMismatch)
+            Interlocked.Increment(ref _directionMismatches);
+
+        return pacer;
     }
 
     private void Send(byte[] data, WindivertAddress address)
@@ -323,9 +334,20 @@ public sealed class WinDivertShaper : IDisposable
         }
     }
 
+    /// <summary>節流器把封包送出時呼叫：計數後才真的注入。</summary>
+    private void Deliver(QueuedPacket packet)
+    {
+        Interlocked.Increment(ref _sentPackets);
+        Interlocked.Add(ref _sentBytes, packet.Payload);
+        Send(packet.Data, packet.Address);
+    }
+
     private void PortLoop(CancellationToken cancellationToken)
     {
         var ticks = 0;
+        var lastTicks = Stopwatch.GetTimestamp();
+        var lastBytes = 0L;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -339,7 +361,15 @@ public sealed class WinDivertShaper : IDisposable
 
             // 每 10 秒留一行統計，事後要追「為什麼沒限到」才有依據。
             if (++ticks % (10_000 / PortRefreshIntervalMs) == 0)
-                WindowsLog.Write("shaper " + DescribeStats());
+            {
+                var now = Stopwatch.GetTimestamp();
+                var bytes = Interlocked.Read(ref _sentBytes);
+                var seconds = Stopwatch.GetElapsedTime(lastTicks, now).TotalSeconds;
+                var rate = seconds > 0 ? (bytes - lastBytes) / seconds / 1000 : 0;
+                lastTicks = now;
+                lastBytes = bytes;
+                WindowsLog.Write($"shaper {DescribeStats()} sentRate={rate:0}KB/s");
+            }
 
             if (cancellationToken.WaitHandle.WaitOne(PortRefreshIntervalMs))
                 break;
@@ -371,6 +401,9 @@ public sealed class WinDivertShaper : IDisposable
         }
 
         _ports.Clear();
+
+        // 樣本只留最近一次刷新之後看到的封包，不然舊的連線會一直留在統計裡誤導人。
+        _samplePairs.Clear();
         foreach (var entry in map)
             _ports[entry.Key] = entry.Value;
 
@@ -388,11 +421,14 @@ public sealed class WinDivertShaper : IDisposable
         {
             if (limit.DownloadBytesPerSecond is null && limit.UploadBytesPerSecond is null)
                 continue;
-            var pacer = new AppPacer(limit, () => _handle, Send);
+            var pacer = CreatePacer(limit);
             _pacers[limit.AppName] = pacer;
             pacer.Start();
         }
     }
+
+    private PacedSender<QueuedPacket> CreatePacer(LimitRule limit) =>
+        new(limit.AppName, limit, packet => packet.Payload, Deliver);
 
     private static string Describe(WindivertException exception)
     {
@@ -406,129 +442,13 @@ public sealed class WinDivertShaper : IDisposable
         return exception.Message;
     }
 
-    private readonly record struct QueuedPacket(byte[] Data, WindivertAddress Address, bool Outbound);
-
-    private sealed class AppPacer : IDisposable
+    private sealed class QueuedPacket(byte[] data, WindivertAddress address, int payload)
     {
-        private readonly Func<WindivertHandle?> _handle;
-        private readonly Action<byte[], WindivertAddress> _send;
-        private readonly CancellationTokenSource _cancellation = new();
-        private Thread? _worker;
-        private double? _downloadRate;
-        private double? _uploadRate;
-        private LeakyBucket? _download;
-        private LeakyBucket? _upload;
+        public byte[] Data { get; } = data;
 
-        public AppPacer(LimitRule limit, Func<WindivertHandle?> handle, Action<byte[], WindivertAddress> send)
-        {
-            Name = limit.AppName;
-            _handle = handle;
-            _send = send;
-            Queue = new BlockingCollection<QueuedPacket>(QueueCapacity);
-            Retarget(limit);
-        }
+        public WindivertAddress Address { get; } = address;
 
-        public string Name { get; }
-
-        public BlockingCollection<QueuedPacket> Queue { get; }
-
-        public LeakyBucket? Download => _download;
-
-        public LeakyBucket? Upload => _upload;
-
-        public void Retarget(LimitRule limit)
-        {
-            if (limit.DownloadBytesPerSecond is double download && download != _downloadRate)
-            {
-                _downloadRate = download;
-                _download = new LeakyBucket(download, Stopwatch.GetTimestamp());
-            }
-            else if (limit.DownloadBytesPerSecond is null)
-            {
-                _downloadRate = null;
-                _download = null;
-            }
-
-            if (limit.UploadBytesPerSecond is double upload && upload != _uploadRate)
-            {
-                _uploadRate = upload;
-                _upload = new LeakyBucket(upload, Stopwatch.GetTimestamp());
-            }
-            else if (limit.UploadBytesPerSecond is null)
-            {
-                _uploadRate = null;
-                _upload = null;
-            }
-        }
-
-        public void Start()
-        {
-            _worker = new Thread(Run)
-            {
-                IsBackground = true,
-                Name = "tidegate-shaper-" + Name,
-            };
-            _worker.Start();
-        }
-
-        public void WaitForExit(int milliseconds) => _worker?.Join(milliseconds);
-
-        public void Dispose()
-        {
-            _cancellation.Cancel();
-            Queue.CompleteAdding();
-            _worker?.Join(300);
-            _cancellation.Dispose();
-        }
-
-        private void Run()
-        {
-            var token = _cancellation.Token;
-            while (!token.IsCancellationRequested)
-            {
-                QueuedPacket packet;
-                try
-                {
-                    if (!Queue.TryTake(out packet, 100, token))
-                        continue;
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (InvalidOperationException)
-                {
-                    break;
-                }
-
-                Deliver(packet, paced: true);
-            }
-
-            // 停止時把剩下的封包送掉，不要讓連線卡住。
-            while (Queue.TryTake(out var remaining))
-                Deliver(remaining, paced: false);
-        }
-
-        private void Deliver(QueuedPacket packet, bool paced)
-        {
-            if (_handle() is null)
-                return;
-
-            if (paced)
-            {
-                var bucket = packet.Outbound ? _upload : _download;
-                if (bucket is not null)
-                {
-                    var wait = bucket.Reserve(packet.Data.Length, Stopwatch.GetTimestamp());
-
-                    // Thread.Sleep 的預設精度是 15.6ms，逐封包睡會把速度壓到遠低於上限。
-                    // 小於 1ms 的等待直接跳過，欠的時間會累積到下一個封包。
-                    if (wait >= TimeSpan.FromMilliseconds(1) && wait < TimeSpan.FromSeconds(5))
-                        Thread.Sleep((int)Math.Ceiling(wait.TotalMilliseconds));
-                }
-            }
-
-            _send(packet.Data, packet.Address);
-        }
+        /// <summary>TCP 酬載長度，令牌桶就是按這個數字扣額度。</summary>
+        public int Payload { get; } = payload;
     }
 }

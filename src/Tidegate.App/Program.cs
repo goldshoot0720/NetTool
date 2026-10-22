@@ -19,6 +19,13 @@ sealed class Program
             return;
         }
 
+        // 本機自測：量節流器本身的速度，不需要驅動、不提權。
+        if (args.Length > 0 && string.Equals(args[0], "--selftest", StringComparison.Ordinal))
+        {
+            Environment.Exit(SelfTest.Run(args));
+            return;
+        }
+
         // Windows 版要讀每個應用程式的流量，靠的是只有系統管理員能開啟的 TCP 延伸統計。
         // 沒提權就先把自己用 UAC 重新開一份；使用者取消的話才退回唯讀畫面。
         if (OperatingSystem.IsWindows())

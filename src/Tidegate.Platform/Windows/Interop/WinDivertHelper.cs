@@ -51,6 +51,28 @@ internal static class WindivertHelper
         return true;
     }
 
+    /// <summary>
+    /// 取出 TCP 的酬載長度（不含 IP 與 TCP 標頭）。節流就是按這個數字計算，
+    /// 這樣介面上看到的速度才會剛好等於上限：標頭是必要開銷，不算在應用程式的額度裡。
+    /// </summary>
+    public static bool TryGetTcpPayloadLength(ReadOnlySpan<byte> packet, out int length)
+    {
+        length = 0;
+
+        if (!TryGetTransportOffset(packet, ProtocolTcp, out var offset))
+            return false;
+        if (packet.Length < offset + TcpHeaderLength)
+            return false;
+
+        // TCP 標頭的 data offset 欄位以 4 位元組為單位，有選項時會大於 20。
+        var headerLength = (packet[offset + 12] >> 4) * 4;
+        if (headerLength < TcpHeaderLength || packet.Length < offset + headerLength)
+            return false;
+
+        length = packet.Length - offset - headerLength;
+        return true;
+    }
+
     /// <summary>取出 UDP 的來源與目的埠。</summary>
     public static bool TryGetUdpPorts(ReadOnlySpan<byte> packet, out ushort source, out ushort destination)
     {

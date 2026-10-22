@@ -82,12 +82,31 @@ public class WindivertHelperTests
         Assert.False(string.IsNullOrWhiteSpace(WindivertError.Describe(9999)));
     }
 
-    private static byte[] Ipv4Tcp(int sourcePort, int destinationPort, int headerLengthWords = 5)
+    [Fact]
+    public void Payload_length_excludes_the_ip_and_tcp_headers()
+    {
+        var packet = Ipv4Tcp(443, 51000, payloadLength: 1460);
+
+        Assert.True(WindivertHelper.TryGetTcpPayloadLength(packet, out var length));
+        Assert.Equal(1460, length);
+    }
+
+    [Fact]
+    public void A_pure_acknowledgement_has_no_payload()
+    {
+        var packet = Ipv4Tcp(443, 51000);
+
+        Assert.True(WindivertHelper.TryGetTcpPayloadLength(packet, out var length));
+        Assert.Equal(0, length);
+    }
+
+    private static byte[] Ipv4Tcp(int sourcePort, int destinationPort, int headerLengthWords = 5, int payloadLength = 0)
     {
         var headerLength = headerLengthWords * 4;
-        var packet = new byte[headerLength + 20];
+        var packet = new byte[headerLength + 20 + payloadLength];
         packet[0] = (byte)(0x40 | headerLengthWords);
         packet[9] = 6;
+        packet[headerLength + 12] = 0x50;   // TCP 標頭長度：5 個 32 位元字
         WritePorts(packet, headerLength, sourcePort, destinationPort);
         return packet;
     }
