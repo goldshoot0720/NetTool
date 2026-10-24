@@ -1,0 +1,105 @@
+name: release
+
+# 推 v* 標籤就自動建置並發佈；也可以在 Actions 頁面手動跑（只產出 artifact，不發佈）。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  macos:
+    name: macOS (.app)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 測試
+        run: dotnet test Tidegate.slnx --nologo
+
+      - name: 決定版本
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "版本：${VERSION}"
+
+      - name: 打包 .app
+        run: ./scripts/package-macos.sh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: 壓成 zip（保留 bundle 的符號連結與中繼資料）
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent build/Tidegate.app \
+            "Tidegate-${{ steps.version.outputs.version }}-macos-arm64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: Tidegate-*-macos-arm64.zip
+          if-no-files-found: error
+
+  windows:
+    name: Windows (單一執行檔)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 測試
+        run: dotnet test Tidegate.slnx --nologo
+
+      - name: 發佈單一執行檔
+        run: >
+          dotnet publish src/Tidegate.App -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=none -o artifacts/win-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: artifacts/win-x64/Tidegate.App.exe
+          if-no-files-found: error
+
+  publish:
+    name: 發佈
+    needs: [macos, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 建立 release（已存在就補上附件）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          ls -lh dist
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --generate-notes
+          fi

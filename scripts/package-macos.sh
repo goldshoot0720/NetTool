@@ -1,14 +1,19 @@
 #!/bin/bash
 # 把 Tidegate.App 打包成 macOS 的 .app（自包含，含圖標與 Info.plist）
 # 用法：scripts/package-macos.sh [osx-arm64|osx-x64]
+# 環境變數：VERSION（預設 1.0.0）寫進 Info.plist
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export DOTNET_ROOT="${DOTNET_ROOT:-/opt/homebrew/opt/dotnet/libexec}"
-export PATH="$DOTNET_ROOT:$PATH"
+# 本機用 Homebrew 的 dotnet；CI 由 setup-dotnet 準備，路徑不一定存在。
+if [ -z "${DOTNET_ROOT:-}" ] && [ -x /opt/homebrew/opt/dotnet/libexec/dotnet ]; then
+  export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
+  export PATH="$DOTNET_ROOT:$PATH"
+fi
 
 ARCH="${1:-osx-arm64}"
+VERSION="${VERSION:-1.0.0}"
 OUT="$ROOT/build/Tidegate.app"
 STAGE="$ROOT/build/.publish"
 ICON="$ROOT/src/Tidegate.App/Assets/Tidegate.icns"
@@ -52,7 +57,7 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
     <key>CFBundleShortVersionString</key>
     <string>1.0.0</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>1.0.0</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>LSMinimumSystemVersion</key>
@@ -70,6 +75,10 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
 PLIST
 
 chmod +x "$OUT/Contents/MacOS/Tidegate.App"
+
+# 版本號寫進 Info.plist（CI 會帶入 tag 版本）
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$OUT/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$OUT/Contents/Info.plist"
 
 # 4. 本機臨時簽章，避免 Gatekeeper 每次詢問
 codesign --force --deep --sign - "$OUT" >/dev/null 2>&1 || \
