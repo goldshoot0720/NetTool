@@ -55,7 +55,7 @@ macOS 沒有單一檔案這種形式，用打包腳本產出 `.app`：
 open build/Tidegate.app
 ```
 
-腳本會自包含發佈、組裝 `Info.plist`、放進圖標並做 ad-hoc 簽章，產物在 `build/Tidegate.app`。直接 `dotnet run` 只會跑出一個裸視窗：沒有 Dock 圖標，選單列顯示「Avalonia Application」，而且子程序（`nettop`、`ps`）在部分環境會被攔下。圖標由 `scripts/make-icon.swift` 產生，產物是 `src/Tidegate.App/Assets/Tidegate.icns`。
+腳本會自包含發佈、組裝 `Info.plist`、放進圖標並做 ad-hoc 簽章，產物在 `build/Tidegate.app`。`Contents/MacOS/` 裡只有一個可執行檔（單一檔案發佈，原生程式庫執行時才解到暫存目錄），整個 bundle 約 45 MB。直接 `dotnet run` 只會跑出一個裸視窗：沒有 Dock 圖標，選單列顯示「Avalonia Application」，而且子程序（`nettop`、`ps`）在部分環境會被攔下。圖標由 `scripts/make-icon.swift` 產生，產物是 `src/Tidegate.App/Assets/Tidegate.icns`。
 
 沒有開 trimming 或 Native AOT：Avalonia 的 XAML 與繫結走反射，裁剪後容易在執行期才炸掉，省下的體積不值得。
 

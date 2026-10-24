@@ -26,14 +26,17 @@ if [ ! -f "$ICON" ]; then
   iconutil -c icns "$ICONSET" -o "$ICON"
 fi
 
-# 2. 自包含發佈（不依賴使用者機器上的 .NET）
+# 2. 自包含發佈成單一檔案（不依賴使用者機器上的 .NET）
 rm -rf "$STAGE" "$OUT"
 dotnet publish "$ROOT/src/Tidegate.App/Tidegate.App.csproj" \
-  -c Release -r "$ARCH" --self-contained true -o "$STAGE" --nologo -v q
+  -c Release -r "$ARCH" --self-contained true \
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+  -p:EnableCompressionInSingleFile=true -p:DebugType=none \
+  -o "$STAGE" --nologo -v q
 
-# 3. 組裝 bundle
+# 3. 組裝 bundle：MacOS/ 裡只放一個可執行檔
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
-cp -R "$STAGE"/. "$OUT/Contents/MacOS/"
+cp "$STAGE/Tidegate.App" "$OUT/Contents/MacOS/Tidegate"
 cp "$ICON" "$OUT/Contents/Resources/Tidegate.icns"
 printf 'APPL????' > "$OUT/Contents/PkgInfo"
 
@@ -49,7 +52,7 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
     <key>CFBundleIdentifier</key>
     <string>com.tidegate.app</string>
     <key>CFBundleExecutable</key>
-    <string>Tidegate.App</string>
+    <string>Tidegate</string>
     <key>CFBundleIconFile</key>
     <string>Tidegate</string>
     <key>CFBundlePackageType</key>
@@ -74,7 +77,7 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-chmod +x "$OUT/Contents/MacOS/Tidegate.App"
+chmod +x "$OUT/Contents/MacOS/Tidegate"
 
 # 版本號寫進 Info.plist（CI 會帶入 tag 版本）
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$OUT/Contents/Info.plist"
