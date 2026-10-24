@@ -94,7 +94,10 @@ public class LimitTests
         Assert.Contains("/sbin/pfctl -a com.apple/tidegate -f", script, StringComparison.Ordinal);
         Assert.Contains("/sbin/pfctl -k", script, StringComparison.Ordinal);
         Assert.Contains("'/Users/feng33/Library/Application Support/Tidegate'", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("/etc/pf.conf", script, StringComparison.Ordinal);
+        // 主規則集若缺少 com.apple 錨點，會載入一次系統預設的 /etc/pf.conf；只讀取，不改寫。
+        Assert.Contains("/sbin/pfctl -f /etc/pf.conf", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("> /etc/pf.conf", script, StringComparison.Ordinal);
+        Assert.DoesNotContain(">> /etc/pf.conf", script, StringComparison.Ordinal);
         Assert.DoesNotContain("-F all", script, StringComparison.Ordinal);
         Assert.DoesNotContain("bad$(name)", script, StringComparison.Ordinal);
         var clear = LimitScript.BuildClear("/tmp/tidegate.token");

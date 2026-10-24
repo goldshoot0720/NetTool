@@ -58,7 +58,8 @@ public sealed record PlatformServices(
                     TracksLiveConnections: true,
                     ObservationHint: "每秒讀取 nettop 的外部介面累計位元組，用兩次樣本的差計算速度。",
                     LimitHint: "輸入 KB/s 後按套用上限。會先保存這個數字，再要求管理者權限。套用之後，新連線會自動補進同一條管線，"
-                        + "現有連線也會重新套上上限。使用系統既有的 com.apple 錨點，不改寫 /etc/pf.conf。1 KB = 1000 位元組。"));
+                        + "現有連線也會重新套上上限。使用系統既有的 com.apple 錨點；主規則集若缺少這個錨點，"
+                        + "會載入一次 /etc/pf.conf（不改寫檔案）。1 KB = 1000 位元組。"));
         }
 
         throw new PlatformNotSupportedException("潮閘目前支援 macOS 與 Windows。");

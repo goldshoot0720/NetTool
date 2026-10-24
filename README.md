@@ -76,7 +76,7 @@ open build/Tidegate.app
 
 上限以 KB/s 輸入，1 KB = 1000 位元組。留空代表該方向不限制。按「套用上限」會先把欄位裡的數字寫入 `~/Library/Application Support/Tidegate/limits.json`（Windows 是 `%APPDATA%\Tidegate\limits.json`），再要求管理者權限。只按保存則先留在本機，尚未限速。
 
-**macOS**：「套用上限」會要求管理者權限，對這個應用目前的外部連線建立 `dnctl` 管線，並把規則載入 `com.apple/tidegate`。macOS 預設的 pf 規則已經會評估 `com.apple/*` 底下的 dummynet 錨點，所以這裡不修改 `/etc/pf.conf`，也不重載主要規則。套用之後，程式會跟著新連線更新規則，並讓現有連線重新走這條管線。清除系統規則會停下這個更新、清掉錨點與管線，以及這次啟用封包過濾器的參考計數。
+**macOS**：「套用上限」會要求管理者權限，對這個應用目前的外部連線建立 `dnctl` 管線，並把規則載入 `com.apple/tidegate`。macOS 預設的 pf 規則會評估 `com.apple/*` 底下的 dummynet 錨點，所以這裡不改寫 `/etc/pf.conf`。但只靠 `pfctl -E` 啟用 pf 時，主規則集其實是空的、沒有那條錨點引用，規則寫進去也不會被評估——所以套用時會先確認主規則集有沒有 `anchor "com.apple/*"`，沒有就載入一次 `/etc/pf.conf`（沿用系統預設內容，不修改檔案）。套用之後，程式會跟著新連線更新規則，並讓現有連線重新走這條管線。清除系統規則會停下這個更新、清掉錨點與管線，以及這次啟用封包過濾器的參考計數。
 
 **Windows**：用 WinDivert 在網路層攔截 TCP 封包，依「本機埠 → 應用程式」對應後排隊節流，下載與上傳都有效。驅動不隨專案附上，要先自己準備：
 

@@ -55,7 +55,7 @@ public static class LimitScript
         builder.AppendLine("/bin/chmod 700 \"$HELPER\"");
         builder.AppendLine("/usr/bin/touch \"$ON\"");
         builder.AppendLine("/usr/bin/perl -MPOSIX -e 'fork() and exit; setsid(); fork() and exit; exec @ARGV or die $!' /bin/bash \"$HELPER\" \"$DIR\"");
-        builder.AppendLine("for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do");
+        builder.AppendLine("for _ in $(/usr/bin/seq 1 40); do");
         builder.AppendLine("  if [[ -s \"$STATUS\" ]]; then");
         builder.AppendLine("    break");
         builder.AppendLine("  fi");
@@ -121,6 +121,30 @@ public static class LimitScript
           if (( n >= 2001 && n <= 2199 )); then return 0; fi
           return 1
         }
+        # pf 只用 pfctl -E 啟用時，主規則集仍是空的：沒有 anchor "com.apple/*"
+        # 這條引用，寫進 com.apple/tidegate 的規則就不會被評估。
+        ensure_pf() {
+          local info out token
+          info="$(/sbin/pfctl -s info 2>&1)"
+          if ! printf '%s' "$info" | /usr/bin/grep -q 'Status: Enabled'; then
+            out="$(/sbin/pfctl -E 2>&1)"
+            token="$(printf '%s\n' "$out" | /usr/bin/sed -n 's/^Token : //p')"
+            if [[ -z "$token" ]]; then
+              printf '%s\n' "無法啟用封包過濾器：$out" > "$STATUS"
+              return 1
+            fi
+            printf '%s\n' "$token" > "$DIR/pf.token"
+            echo "pf 原本未啟用，已啟用（token ${token}）"
+          fi
+          if ! /sbin/pfctl -s rules 2>/dev/null | /usr/bin/grep -q 'anchor "com.apple/\*"'; then
+            if ! /sbin/pfctl -f /etc/pf.conf >/dev/null 2>&1; then
+              printf '%s\n' "主規則集缺少 com.apple 錨點，且載入 /etc/pf.conf 失敗" > "$STATUS"
+              return 1
+            fi
+            echo "主規則集缺少 com.apple 錨點，已載入 /etc/pf.conf"
+          fi
+          return 0
+        }
         apply_files() {
           local line num kbit
           while IFS= read -r line || [[ -n "$line" ]]; do
@@ -148,6 +172,9 @@ public static class LimitScript
               return 1
             fi
           done < "$PIPES"
+          if ! ensure_pf; then
+            return 1
+          fi
           while IFS= read -r line || [[ -n "$line" ]]; do
             [[ -z "$line" ]] && continue
             num="${line%% *}"
@@ -170,13 +197,23 @@ public static class LimitScript
             printf '%s\n' "pfctl 拒絕載入潮閘規則" > "$STATUS"
             return 1
           fi
+          local loaded
+          loaded="$(/sbin/pfctl -a com.apple/tidegate -sr 2>/dev/null | /usr/bin/grep -c '^dummynet')"
+          echo "錨點內規則數：$loaded"
+          if (( loaded == 0 )); then
+            printf '%s\n' "規則已寫入錨點，但系統沒有回報任何規則。" > "$STATUS"
+            return 1
+          fi
           while IFS= read -r line || [[ -n "$line" ]]; do
             [[ -z "$line" ]] && continue
             if [[ "$line" =~ from\ ([0-9A-Fa-f.:]+)\ port\ [0-9]+\ to\ ([0-9A-Fa-f.:]+)\ port\ [0-9]+ ]]; then
               /sbin/pfctl -k "${BASH_REMATCH[1]}" -k "${BASH_REMATCH[2]}" >/dev/null 2>&1 || true
+              /sbin/pfctl -k "${BASH_REMATCH[2]}" -k "${BASH_REMATCH[1]}" >/dev/null 2>&1 || true
             fi
           done < "$RULES"
           printf '%s\n' "已套用潮閘上限。新的連線會自動補進同一條管線。" > "$STATUS"
+          echo "pf: $(/sbin/pfctl -s info 2>/dev/null | /usr/bin/grep -E 'Status:|State Table' | /usr/bin/tr '\n' ' ')"
+          echo "dnctl: $(/usr/sbin/dnctl list 2>/dev/null | /usr/bin/tr '\n' ' ')"
         }
         last=""
         while [[ -f "$DIR/helper.on" ]]; do

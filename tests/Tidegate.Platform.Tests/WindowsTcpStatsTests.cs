@@ -11,6 +11,10 @@ public class WindowsTcpStatsTests
     [Fact]
     public void The_data_rod_buffer_size_is_accepted_by_the_system()
     {
+        // 延伸統計只有 Windows 有；在其他平台（例如打包 macOS 版的 CI）直接跳過。
+        if (!OperatingSystem.IsWindows())
+            return;
+
         var connections = WindowsTcpTable.Read()
             .Where(connection => connection.ProcessId > 0
                 && !connection.IsListening
