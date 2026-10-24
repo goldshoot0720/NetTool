@@ -1,0 +1,9 @@
+# 原始碼一律用 LF，避免 Windows 簽出時把測試字串換成 CRLF。
+* text=auto eol=lf
+
+*.icns binary
+*.png binary
+*.ico binary
+*.dll binary
+*.sys binary
+*.pdb binary

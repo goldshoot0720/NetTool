@@ -7,8 +7,10 @@ public static class LsofFieldParser
         var sockets = new List<FlowSocket>();
         var pid = 0;
         var protocol = "";
-        foreach (var raw in text.Split('\n'))
+        foreach (var line in text.Split('\n'))
         {
+            // 容忍 CRLF：Windows 上簽出的測試字串會帶 \r，留著會讓數字與協定名解析失敗。
+            var raw = line.TrimEnd('\r');
             if (raw.Length < 2)
                 continue;
 
