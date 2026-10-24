@@ -1,6 +1,7 @@
 bin/
 obj/
 artifacts/
+build/
 .DS_Store
 *.user
 .idea/

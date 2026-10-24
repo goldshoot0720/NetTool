@@ -48,7 +48,14 @@ dotnet publish src/Tidegate.App -c Release -r win-x64 --self-contained true \
 
 單一檔案只包得住程式本身。要限速的話，`WinDivert.dll` 與 `WinDivert64.sys` 仍然得放在 exe 旁邊——驅動必須是磁碟上的實體檔案，核心才載得進來。
 
-macOS 沒有單一檔案這種形式，`dotnet publish -r osx-arm64` 產出的是 `.app` bundle。
+macOS 沒有單一檔案這種形式，用打包腳本產出 `.app`：
+
+```bash
+./scripts/package-macos.sh
+open build/Tidegate.app
+```
+
+腳本會自包含發佈、組裝 `Info.plist`、放進圖標並做 ad-hoc 簽章，產物在 `build/Tidegate.app`。直接 `dotnet run` 只會跑出一個裸視窗：沒有 Dock 圖標，選單列顯示「Avalonia Application」，而且子程序（`nettop`、`ps`）在部分環境會被攔下。圖標由 `scripts/make-icon.swift` 產生，產物是 `src/Tidegate.App/Assets/Tidegate.icns`。
 
 沒有開 trimming 或 Native AOT：Avalonia 的 XAML 與繫結走反射，裁剪後容易在執行期才炸掉，省下的體積不值得。
 
