@@ -125,6 +125,20 @@ public class MonitoringTests
     }
 
     [Fact]
+    public void Interpreters_that_live_in_their_own_bundle_still_follow_the_app_that_started_them()
+    {
+        const string text = """
+             1177     1 /Users/feng33/Desktop/YoutubeOrBilibiliMP3Converter.app/Contents/MacOS/YoutubeOrBilibiliMP3Converter
+             2763  1177 /opt/homebrew/Cellar/python@3.14/3.14.8/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python
+            """;
+
+        var table = ProcessTableParser.Parse(text);
+
+        Assert.Equal("Python", AppName.FromCommand(table[2763].Command, "Python"));
+        Assert.Equal("YoutubeOrBilibiliMP3Converter", ProcessOwnership.Resolve(2763, table, "Python"));
+    }
+
+    [Fact]
     public void Commands_started_from_a_terminal_keep_their_own_name()
     {
         const string text = """

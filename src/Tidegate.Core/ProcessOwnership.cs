@@ -35,23 +35,30 @@ public static class ProcessOwnership
         if (!processes.TryGetValue(processId, out var entry))
             return AppName.FromCommand(null, fallback);
 
-        var ownName = AppName.FromCommand(entry.Command, fallback);
-        if (AppName.BundleNameOf(entry.Command) is not null)
-            return ownName;
+        // 先看父行程鏈。直譯器自己也可能住在一個 .app 裡（Homebrew 的 python 就在
+        // Python.framework/.../Python.app），只認自己的 bundle 會停在「Python」。
+        return OwnerBundle(entry, processId, processes)
+            ?? AppName.FromCommand(entry.Command, fallback);
+    }
 
+    private static string? OwnerBundle(
+        ProcessEntry entry,
+        int processId,
+        IReadOnlyDictionary<int, ProcessEntry> processes)
+    {
         var parentId = entry.ParentProcessId;
         for (var depth = 0; depth < MaxAncestorDepth; depth++)
         {
             if (parentId <= 0 || parentId == processId || !processes.TryGetValue(parentId, out var ancestor))
-                break;
+                return null;
 
             var bundle = AppName.BundleNameOf(ancestor.Command);
             if (bundle is not null)
-                return HostBundles.Contains(bundle) ? ownName : bundle;
+                return HostBundles.Contains(bundle) ? null : bundle;
 
             parentId = ancestor.ParentProcessId;
         }
 
-        return ownName;
+        return null;
     }
 }
