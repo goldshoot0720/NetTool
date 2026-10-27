@@ -103,5 +103,6 @@ jobs:
           if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* -R "$REPO" --clobber
           else
-            gh release create "$TAG" dist/* -R "$REPO" --title "$TAG" --generate-notes
+            gh release create "$TAG" dist/* -R "$REPO" \
+              --title "潮閘 Tidegate ${TAG}" --generate-notes
           fi
