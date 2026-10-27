@@ -8,7 +8,7 @@ public static class AppName
     {
         if (!string.IsNullOrWhiteSpace(command))
         {
-            var bundle = FromBundle(command);
+            var bundle = BundleNameOf(command);
             if (bundle is not null)
                 return bundle;
 
@@ -29,8 +29,12 @@ public static class AppName
         return string.IsNullOrWhiteSpace(fallback) ? "未知應用" : fallback;
     }
 
-    private static string? FromBundle(string command)
+    /// <summary>路徑在 .app 裡就回傳 bundle 名稱（不含 .app），否則 null。</summary>
+    public static string? BundleNameOf(string? command)
     {
+        if (string.IsNullOrWhiteSpace(command))
+            return null;
+
         var marker = command.IndexOf(".app/", StringComparison.OrdinalIgnoreCase);
         if (marker < 0 && command.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
             marker = command.Length - 4;

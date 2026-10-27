@@ -7,7 +7,7 @@ public interface ITrafficSource
 
 public interface IProcessCatalog
 {
-    Task<IReadOnlyDictionary<int, string>> CommandPathsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<int, ProcessEntry>> ProcessesAsync(CancellationToken cancellationToken);
 }
 
 public interface IConnectionLookup

@@ -436,8 +436,8 @@ public partial class MainViewModel : ViewModelBase
             var sockets = pids.Length == 0
                 ? Array.Empty<FlowSocket>()
                 : await _connections.LookupAsync(pids, _monitor?.Token ?? CancellationToken.None);
-            var paths = await _catalog.CommandPathsAsync(_monitor?.Token ?? CancellationToken.None);
-            return _planner.Build(apps, sockets, paths);
+            var processes = await _catalog.ProcessesAsync(_monitor?.Token ?? CancellationToken.None);
+            return _planner.Build(apps, sockets, ProcessTable.CommandPaths(processes));
         }
         catch (OperationCanceledException)
         {
@@ -456,11 +456,11 @@ public partial class MainViewModel : ViewModelBase
         {
             await foreach (var sample in _source.WatchAsync(cancellationToken).ConfigureAwait(false))
             {
-                var paths = await _catalog.CommandPathsAsync(cancellationToken).ConfigureAwait(false);
+                var processes = await _catalog.ProcessesAsync(cancellationToken).ConfigureAwait(false);
                 var at = DateTimeOffset.UtcNow;
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    Publish(_board.Ingest(sample, paths, at));
+                    Publish(_board.Ingest(sample, processes, at));
                     if (string.IsNullOrWhiteSpace(StatusMessage) || StatusMessage.StartsWith("正在讀取", StringComparison.Ordinal))
                         StatusMessage = "外部流量觀測中。";
                 });
@@ -497,7 +497,7 @@ public partial class MainViewModel : ViewModelBase
         var sockets = pids.Length == 0
             ? Array.Empty<FlowSocket>()
             : await _connections.LookupAsync(pids, cancellationToken);
-        var paths = await _catalog.CommandPathsAsync(cancellationToken);
+        var paths = ProcessTable.CommandPaths(await _catalog.ProcessesAsync(cancellationToken));
         _gateway.Stage(_planner.Build(apps, sockets, paths));
     }
 

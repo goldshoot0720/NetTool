@@ -15,7 +15,8 @@ public static class ChannelQuery
         {
             var term = search.Trim();
             query = query.Where(channel =>
-                channel.Name.Contains(term, StringComparison.CurrentCultureIgnoreCase));
+                channel.Name.Contains(term, StringComparison.CurrentCultureIgnoreCase) ||
+                channel.SearchAliases.Any(alias => alias.Contains(term, StringComparison.CurrentCultureIgnoreCase)));
         }
 
         if (hideIdle)

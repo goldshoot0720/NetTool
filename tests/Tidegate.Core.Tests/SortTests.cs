@@ -86,19 +86,19 @@ public class SortTests
     {
         var board = new TrafficBoard(new LimitCatalog());
         var t0 = DateTimeOffset.Parse("2026-10-19T00:00:00Z");
-        var paths = new Dictionary<int, string>
+        var processes = new Dictionary<int, ProcessEntry>
         {
-            [1] = "/Applications/Firefox.app/Contents/MacOS/firefox",
-            [2] = "/usr/bin/curl",
+            [1] = new(0, "/Applications/Firefox.app/Contents/MacOS/firefox"),
+            [2] = new(0, "/usr/bin/curl"),
         };
 
         board.Ingest(
             [new ProcessTraffic("firefox", 1, 0, 0), new ProcessTraffic("curl", 2, 0, 0)],
-            paths,
+            processes,
             t0);
         var state = board.Ingest(
             [new ProcessTraffic("firefox", 1, 8_000, 2_000), new ProcessTraffic("curl", 2, 100, 0)],
-            paths,
+            processes,
             t0.AddSeconds(1));
 
         Assert.Equal(["Firefox"], state.Rows.Select(row => row.Name));

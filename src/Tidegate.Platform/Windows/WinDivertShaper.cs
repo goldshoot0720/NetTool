@@ -382,7 +382,7 @@ public sealed class WinDivertShaper : IDisposable
             return;
 
         var started = Stopwatch.GetTimestamp();
-        var paths = _catalog.CommandPathsAsync(cancellationToken).GetAwaiter().GetResult();
+        var paths = ProcessTable.CommandPaths(_catalog.ProcessesAsync(cancellationToken).GetAwaiter().GetResult());
         var connections = WindowsTcpTable.Read();
         var map = new Dictionary<int, string>();
 

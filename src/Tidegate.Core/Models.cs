@@ -32,9 +32,13 @@ public sealed record AppChannel(
     string Name,
     IReadOnlyList<int> ProcessIds,
     double DownloadBytesPerSecond,
-    double UploadBytesPerSecond)
+    double UploadBytesPerSecond,
+    IReadOnlyList<string>? Aliases = null)
 {
     public double TotalBytesPerSecond => DownloadBytesPerSecond + UploadBytesPerSecond;
+
+    /// <summary>被併進來的子行程原名（例如「Python」），搜尋時也認得。</summary>
+    public IReadOnlyList<string> SearchAliases => Aliases ?? [];
 }
 
 public readonly record struct RatePoint(double DownloadBytesPerSecond, double UploadBytesPerSecond);

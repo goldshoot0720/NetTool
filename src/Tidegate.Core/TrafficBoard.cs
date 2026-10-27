@@ -27,7 +27,7 @@ public sealed class TrafficBoard
 
     public TrafficBoardState Ingest(
         IReadOnlyList<ProcessTraffic> sample,
-        IReadOnlyDictionary<int, string> commandPaths,
+        IReadOnlyDictionary<int, ProcessEntry> processes,
         DateTimeOffset at)
     {
         if (_previous is not null && _previousAt is { } previousAt)
@@ -38,9 +38,7 @@ public sealed class TrafficBoard
                 var rates = RateCalculator.FromCounters(_previous, sample, elapsed)
                     .Select(rate => rate with
                     {
-                        DisplayName = AppName.FromCommand(
-                            commandPaths.TryGetValue(rate.ProcessId, out var command) ? command : null,
-                            rate.ProcessName),
+                        DisplayName = ProcessOwnership.Resolve(rate.ProcessId, processes, rate.ProcessName),
                     })
                     .ToArray();
                 _channels = ChannelAggregator.Aggregate(rates);

@@ -10,7 +10,12 @@ public static class ChannelAggregator
                 group.Key,
                 group.Select(rate => rate.ProcessId).Distinct().OrderBy(pid => pid).ToArray(),
                 group.Sum(rate => rate.DownloadBytesPerSecond),
-                group.Sum(rate => rate.UploadBytesPerSecond)))
+                group.Sum(rate => rate.UploadBytesPerSecond),
+                group.Select(rate => rate.ProcessName)
+                    .Where(name => !string.IsNullOrWhiteSpace(name) && !string.Equals(name, group.Key, StringComparison.Ordinal))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(name => name, StringComparer.Ordinal)
+                    .ToArray()))
             .ToArray();
     }
 }

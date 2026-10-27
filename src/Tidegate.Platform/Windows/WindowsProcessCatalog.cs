@@ -11,9 +11,10 @@ public sealed class WindowsProcessCatalog : IProcessCatalog
 {
     private readonly Dictionary<int, string> _cache = new();
 
-    public Task<IReadOnlyDictionary<int, string>> CommandPathsAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyDictionary<int, ProcessEntry>> ProcessesAsync(CancellationToken cancellationToken)
     {
-        var map = new Dictionary<int, string>();
+        // Windows 這條路不提供父行程，名稱照可執行檔路徑還原（不做子行程歸戶）。
+        var map = new Dictionary<int, ProcessEntry>();
         foreach (var process in Process.GetProcesses())
         {
             using (process)
@@ -22,7 +23,7 @@ public sealed class WindowsProcessCatalog : IProcessCatalog
                 var pid = process.Id;
                 if (_cache.TryGetValue(pid, out var cached))
                 {
-                    map[pid] = cached;
+                    map[pid] = new ProcessEntry(0, cached);
                     continue;
                 }
 
@@ -31,14 +32,14 @@ public sealed class WindowsProcessCatalog : IProcessCatalog
                     continue;
 
                 _cache[pid] = path;
-                map[pid] = path;
+                map[pid] = new ProcessEntry(0, path);
             }
         }
 
         foreach (var pid in _cache.Keys.Where(pid => !map.ContainsKey(pid)).ToArray())
             _cache.Remove(pid);
 
-        return Task.FromResult<IReadOnlyDictionary<int, string>>(map);
+        return Task.FromResult<IReadOnlyDictionary<int, ProcessEntry>>(map);
     }
 
     private static string? Query(int pid)

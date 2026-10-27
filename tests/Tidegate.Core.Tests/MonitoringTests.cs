@@ -88,8 +88,84 @@ public class MonitoringTests
 
         var table = ProcessTableParser.Parse(text);
 
-        Assert.Equal("/Applications/Firefox.app/Contents/MacOS/firefox", table[1258]);
-        Assert.Equal("/Applications/My App.app/Contents/MacOS/bin", table[88]);
+        Assert.Equal("/Applications/Firefox.app/Contents/MacOS/firefox", table[1258].Command);
+        Assert.Equal("/Applications/My App.app/Contents/MacOS/bin", table[88].Command);
+        Assert.Equal(0, table[1258].ParentProcessId);
+    }
+
+    [Fact]
+    public void Process_table_reads_the_parent_pid_column()
+    {
+        const string text = """
+              1258  1200 /Applications/Firefox.app/Contents/MacOS/firefox
+                88     1 /Applications/My App.app/Contents/MacOS/bin
+            """;
+
+        var table = ProcessTableParser.Parse(text);
+
+        Assert.Equal(1200, table[1258].ParentProcessId);
+        Assert.Equal("/Applications/My App.app/Contents/MacOS/bin", table[88].Command);
+    }
+
+    [Fact]
+    public void Child_processes_take_the_name_of_the_owning_app()
+    {
+        const string text = """
+            96765     1 /Applications/YoutubeOrBilibiliMP3Converter.app/Contents/MacOS/YoutubeOrBilibiliMP3Converter
+            97001 96765 /opt/homebrew/Cellar/yt-dlp/2026.8.19_2/libexec/bin/python
+            97002 97001 /opt/homebrew/Cellar/yt-dlp/2026.8.19_2/libexec/bin/python
+            """;
+
+        var table = ProcessTableParser.Parse(text);
+
+        Assert.Equal("YoutubeOrBilibiliMP3Converter", ProcessOwnership.Resolve(96765, table, "YoutubeOrBilibi"));
+        Assert.Equal("YoutubeOrBilibiliMP3Converter", ProcessOwnership.Resolve(97001, table, "Python"));
+        Assert.Equal("YoutubeOrBilibiliMP3Converter", ProcessOwnership.Resolve(97002, table, "Python"));
+        Assert.Equal("未知應用", ProcessOwnership.Resolve(4242, table, ""));
+    }
+
+    [Fact]
+    public void Commands_started_from_a_terminal_keep_their_own_name()
+    {
+        const string text = """
+              500     1 /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal
+              501   500 /usr/bin/python3
+              502   501 /opt/homebrew/bin/ffmpeg
+            """;
+
+        var table = ProcessTableParser.Parse(text);
+
+        Assert.Equal("Terminal", ProcessOwnership.Resolve(500, table, "Terminal"));
+        Assert.Equal("python3", ProcessOwnership.Resolve(501, table, "Python"));
+        Assert.Equal("ffmpeg", ProcessOwnership.Resolve(502, table, "ffmpeg"));
+    }
+
+    [Fact]
+    public void Board_rolls_child_traffic_into_the_app_row()
+    {
+        var board = new TrafficBoard(new LimitCatalog());
+        var t0 = DateTimeOffset.Parse("2026-10-27T12:00:00Z");
+        var processes = ProcessTableParser.Parse("""
+            96765     1 /Applications/YoutubeOrBilibiliMP3Converter.app/Contents/MacOS/YoutubeOrBilibiliMP3Converter
+            97001 96765 /opt/homebrew/Cellar/yt-dlp/2026.8.19_2/libexec/bin/python
+            """);
+
+        board.Ingest(
+            [new ProcessTraffic("YoutubeOrBilibi", 96765, 0, 0), new ProcessTraffic("Python", 97001, 0, 0)],
+            processes,
+            t0);
+        var state = board.Ingest(
+            [new ProcessTraffic("YoutubeOrBilibi", 96765, 1_000, 0), new ProcessTraffic("Python", 97001, 800_000, 0)],
+            processes,
+            t0.AddSeconds(1));
+
+        var row = Assert.Single(state.Rows);
+        Assert.Equal("YoutubeOrBilibiliMP3Converter", row.Name);
+        Assert.Equal([96765, 97001], row.ProcessIds);
+        Assert.Equal(801_000, row.DownloadBytesPerSecond);
+
+        var byChildName = board.WithSearch("Python");
+        Assert.Equal(["YoutubeOrBilibiliMP3Converter"], byChildName.Rows.Select(item => item.Name));
     }
 
     [Theory]
