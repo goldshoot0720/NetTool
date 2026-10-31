@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -68,6 +69,10 @@ public partial class MainViewModel : ViewModelBase
     public PlatformCapabilities Capabilities => _capabilities;
 
     public string PlatformName => _capabilities.Name;
+
+    /// <summary>版本號只有一個來源：Directory.Build.props（CI 發佈時用 tag 覆蓋）。</summary>
+    public string VersionText =>
+        "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0");
 
     public string LimitHint => _capabilities.LimitHint;
 

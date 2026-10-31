@@ -44,6 +44,10 @@ dotnet publish src/Tidegate.App -c Release -r win-x64 --self-contained true \
   -p:EnableCompressionInSingleFile=true -p:DebugType=none -o artifacts/win-x64
 ```
 
+版本號只有一個來源：專案根目錄的 `Directory.Build.props`。本地建置用它，發佈時 CI 會用 tag
+覆蓋（`-p:Version=0.4.1`），所以 exe 的檔案版本、macOS 的 `Info.plist`、視窗標題顯示的版本
+會是同一個數字。打 tag 之前先把 `Directory.Build.props` 改成新版本。
+
 產出 `artifacts/win-x64/Tidegate.App.exe`，約 50 MB。想小一點可以改成 `--self-contained false`（約 30 MB），但目標機器要先安裝 .NET 10 Desktop Runtime；這種模式不支援 `EnableCompressionInSingleFile`。
 
 單一檔案只包得住程式本身。要限速的話，`WinDivert.dll` 與 `WinDivert64.sys` 仍然得放在 exe 旁邊——驅動必須是磁碟上的實體檔案，核心才載得進來。

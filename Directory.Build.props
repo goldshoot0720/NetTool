@@ -1,0 +1,15 @@
+﻿<Project>
+
+  <!--
+    版本只有這一個來源。本地建置用它；CI 發佈時會用 tag 覆蓋（-p:Version=…），
+    所以 release 上的 exe、macOS 的 Info.plist、程式裡顯示的版本號會是同一個數字。
+    發版前把這裡改成新版本，再打 tag。
+  -->
+  <PropertyGroup>
+    <Version>0.4.0</Version>
+    <Product>潮閘 Tidegate</Product>
+    <AssemblyTitle>潮閘 Tidegate</AssemblyTitle>
+    <Company>Tidegate</Company>
+  </PropertyGroup>
+
+</Project>
